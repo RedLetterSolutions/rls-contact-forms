@@ -1,0 +1,187 @@
+# Goal
+
+Build a **multi-tenant contact form service** using **..NET Azure Functions (isolated worker)** that any of our websites can post to. It emails submissions via **SendGrid** and then **303-redirects** users back to a per-site thank-you URL on their own domain. No JS required on the client; support both simple `<form>` POSTs and JSON `fetch` posts.
+
+# High-Level Requirements
+
+* Runtime: **.the most up-to-date .NET**, **Azure Functions isolated**.
+* Single HTTP **POST** endpoint: `POST /v1/contact/{siteId}`.
+* Accept content types:
+
+  * `application/x-www-form-urlencoded`
+  * `application/json`
+* Fields:
+
+  * Required: `email`, `message`
+  * Optional: `name`
+  * Anti-spam: honeypot field `_hp` (if set, treat as success + redirect without sending).
+  * Optional HMAC fields: `_ts` (Unix seconds), `_sig` (hex HMAC-SHA256).
+* On success:
+
+  * Send email through **SendGrid** using org API key.
+  * Respond **303 See Other** with `Location: <site redirect_url>` (keeps the user on their site).
+* On error:
+
+  * `400` for missing fields/signature issues.
+  * `429` for rate-limit exceeded.
+* Multi-tenant config per `{siteId}` from **App Settings** (or Azure App Configuration if it’s present), with keys:
+
+  * `sites:{siteId}:to_email`
+  * `sites:{siteId}:from_email` (fallback to `DEFAULT_FROM_EMAIL`)
+  * `sites:{siteId}:redirect_url`
+  * `sites:{siteId}:allow_origins` (comma-separated; only enforced for requests that include `Origin` header)
+  * `sites:{siteId}:secret` (optional; enables HMAC validation)
+  * Optional later: `sites:{siteId}:template_id` (SendGrid dynamic template)
+* Global settings:
+
+  * `SENDGRID_API_KEY`
+  * `DEFAULT_FROM_EMAIL`
+  * `AzureWebJobsStorage` (for rate-limit table)
+
+# Security & Abuse Controls
+
+* **Honeypot:** If `_hp` has any value, short-circuit to a 303 redirect (pretend success).
+* **Origin allowlist:** If request has `Origin` header and `sites:{id}:allow_origins` is non-empty, reject with 400 if not matched (case-insensitive).
+* **Optional HMAC:** If `sites:{id}:secret` exists, require `_ts` within ±10 minutes and `_sig` valid for payload:
+
+  * String to sign: `${siteId}|${_ts}|${email}|${name}|${first_200_chars_of_message}`
+  * HMAC-SHA256(hex) using `sites:{id}:secret`.
+* **Rate limiting:** Per (`siteId`, client IP) at **1 request per 10 seconds** using **Azure Table Storage** (table name `ContactRate`). PartitionKey=`siteId`, RowKey=`<ip>:yyyyMMddHHmm`.
+
+# Email
+
+* Use **SendGrid** client (API v3).
+* Subject: `New contact ({siteId}) from {name}`
+* From: `sites:{id}:from_email` or `DEFAULT_FROM_EMAIL`, display name `Website Contact`.
+* To: `sites:{id}:to_email`.
+* Body:
+
+  * Text: `From: {name} <{email}>\n\n{message}`
+  * HTML: `<p><b>From:</b> {name} &lt;{email}&gt;</p><p>{message_html_escaped}</p>`
+* If SendGrid returns non-200/202, log warning but still return the normal redirect (don’t leak details to end users).
+
+# Project Structure
+
+```
+/ (repo root)
+  /api
+    Api.csproj
+    host.json
+    local.settings.json.example
+    Contact.cs      // main function
+    Startup.cs      // configuration (if needed)
+  /samples
+    example-form.html
+README.md
+azure-functions-deploy.yml  // GitHub Actions workflow (optional)
+```
+
+# Implementation Details
+
+* **Endpoint signature** (isolated):
+
+  * Route: `[HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/contact/{siteId}")]`
+  * Return types: 303 (success), 400 (bad request), 429 (rate limit)
+* **Parsing:**
+
+  * If `Content-Type` contains `application/json`, parse JSON.
+  * Else parse as `x-www-form-urlencoded`.
+* **Helpers:**
+
+  * Method to load per-site config from `IConfiguration` with prefix `sites:{siteId}:`.
+  * Method to compute and compare HMAC (constant-time compare).
+  * Method to implement simple rate limit via `TableClient`.
+  * HTML-escape for email HTML rendering.
+* **Redirect:**
+
+  * Always use **303 See Other** and set `Location` to the configured redirect URL.
+  * If site missing or misconfigured → `400 Unknown site`.
+* **Logging:**
+
+  * Log `siteId`, IP, outcome (sent/skipped/blocked), and latency.
+* **CORS:**
+
+  * Not needed for plain `<form>` POST. If supporting `fetch`, include `Access-Control-Allow-Origin` only when `Origin` is allowlisted. Don’t wildcard.
+
+# Files to Produce
+
+1. **`/api/Contact.cs`** — full function implementation covering:
+
+   * Parsing (form + JSON)
+   * Honeypot
+   * Origin allowlist
+   * Optional HMAC validation
+   * Rate limiting with Azure Table
+   * SendGrid email
+   * 303 redirect
+2. **`/api/Api.csproj`** — references:
+
+   * `Microsoft.Azure.Functions.Worker`
+   * `Microsoft.Azure.Functions.Worker.Extensions.Http`
+   * `Azure.Data.Tables`
+   * `SendGrid`
+3. **`/api/host.json`**:
+
+   ```json
+   { "version": "2.0" }
+   ```
+4. **`/api/local.settings.json.example`** (do not commit secrets):
+
+   ```json
+   {
+     "IsEncrypted": false,
+     "Values": {
+       "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+       "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+       "SENDGRID_API_KEY": "SG.xxxxx",
+       "DEFAULT_FROM_EMAIL": "no-reply@youragency.com",
+       "sites:world1:to_email": "owner@world1inc.com",
+       "sites:world1:from_email": "contact@world1inc.com",
+       "sites:world1:redirect_url": "https://world1inc.com/thanks",
+       "sites:world1:allow_origins": "https://world1inc.com,https://www.world1inc.com",
+       "sites:world1:secret": "REPLACE_ME"
+     }
+   }
+   ```
+5. **`/samples/example-form.html`** (site usage):
+
+   ```html
+   <form action="https://forms.youragency.com/v1/contact/world1" method="POST">
+     <input name="name" required>
+     <input type="email" name="email" required>
+     <textarea name="message" required></textarea>
+     <input type="text" name="_hp" style="display:none">
+     <button type="submit">Send</button>
+   </form>
+   ```
+
+   (Optionally include a JSON `fetch` example that sets `Content-Type: application/json`.)
+6. **`README.md`** — include:
+
+   * Overview + architecture diagram (ASCII ok)
+   * Environment variables
+   * Local run (`func start`) and deploy steps
+   * How to add a new siteId (the 60-second checklist)
+   * Security notes (DKIM/SPF on SendGrid, HMAC, Turnstile hook point)
+7. **`azure-functions-deploy.yml`** — GitHub Action (optional) for CI/CD to Azure Functions.
+
+# Acceptance Criteria
+
+* ✅ Posting valid form data to `/v1/contact/{siteId}` sends an email (202 from SendGrid) and returns **303** to the site’s `redirect_url`.
+* ✅ Honeypot `_hp` short-circuits with **303** (no email).
+* ✅ With `sites:{id}:secret` set, requests **must** include valid `_ts` and `_sig`; invalid or stale → **400**.
+* ✅ Rate limiting enforces 1 req / 10s per (`siteId`, IP) → **429** on excess.
+* ✅ Origin allowlist blocks requests with an `Origin` not in `allow_origins` (if provided).
+* ✅ Supports both form-urlencoded and JSON bodies.
+* ✅ No secrets are committed; `local.settings.json.example` provided.
+* ✅ Clear README explains onboarding a new site and environment setup.
+
+# Nice-to-Haves (if time permits)
+
+* Optional Turnstile/Recaptcha verification hook before send.
+* Optional SendGrid Dynamic Template support via `sites:{id}:template_id`.
+* Minimal unit tests for HMAC validation and rate limiter keying.
+
+---
+
+Please generate the full project with the files above, production-ready and minimal.

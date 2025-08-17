@@ -1,0 +1,57 @@
+name: Deploy Azure Functions
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  AZURE_FUNCTIONAPP_NAME: 'your-function-app-name'   # Replace with your Function App name
+  AZURE_FUNCTIONAPP_PACKAGE_PATH: './api'            # Path to your Function App project
+  DOTNET_VERSION: '8.0.x'                           # .NET version
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 'Checkout GitHub Action'
+      uses: actions/checkout@v4
+
+    - name: Setup DotNet ${{ env.DOTNET_VERSION }} Environment
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: 'Resolve Project Dependencies Using Dotnet'
+      shell: bash
+      run: |
+        pushd '${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}'
+        dotnet build --configuration Release --output ./output
+        popd
+
+    - name: 'Run Azure Functions Action'
+      uses: Azure/functions-action@v1
+      id: fa
+      with:
+        app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
+        package: '${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/output'
+        publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
+
+    # Optional: Add test step
+    - name: 'Run Tests'
+      shell: bash
+      run: |
+        pushd '${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}'
+        dotnet test --configuration Release --no-build --logger trx --results-directory ./TestResults
+        popd
+      continue-on-error: true
+
+    # Optional: Upload test results
+    - name: 'Upload Test Results'
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: test-results
+        path: '${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/TestResults/*.trx'

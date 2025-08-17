@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact Form Example</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        textarea {
+            height: 120px;
+            resize: vertical;
+        }
+        button {
+            background-color: #007cba;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #005a87;
+        }
+        .hidden {
+            display: none;
+        }
+        .example-section {
+            margin-top: 40px;
+            padding: 20px;
+            background-color: #f5f5f5;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Contact Form Example</h1>
+    
+    <h2>Simple HTML Form (POST)</h2>
+    <form action="https://forms.youragency.com/v1/contact/world1" method="POST">
+        <div class="form-group">
+            <label for="name">Name:</label>
+            <input type="text" id="name" name="name" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="email">Email:</label>
+            <input type="email" id="email" name="email" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="message">Message:</label>
+            <textarea id="message" name="message" required></textarea>
+        </div>
+        
+        <!-- Honeypot field - hidden from users -->
+        <input type="text" name="_hp" class="hidden" tabindex="-1">
+        
+        <button type="submit">Send Message</button>
+    </form>
+
+    <div class="example-section">
+        <h2>JavaScript Fetch Example</h2>
+        <p>You can also submit forms via JavaScript using fetch:</p>
+        
+        <button onclick="submitWithFetch()">Submit via Fetch (JSON)</button>
+        
+        <script>
+        async function submitWithFetch() {
+            const formData = {
+                name: document.getElementById('name').value,
+                email: document.getElementById('email').value,
+                message: document.getElementById('message').value,
+                _hp: '' // Honeypot field
+            };
+            
+            try {
+                const response = await fetch('https://forms.youragency.com/v1/contact/world1', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(formData),
+                    redirect: 'manual' // Handle redirect manually
+                });
+                
+                if (response.status === 303) {
+                    // Handle redirect
+                    const redirectUrl = response.headers.get('Location');
+                    if (redirectUrl) {
+                        window.location.href = redirectUrl;
+                    } else {
+                        alert('Thank you! Your message has been sent.');
+                    }
+                } else {
+                    alert('Error: ' + response.statusText);
+                }
+            } catch (error) {
+                alert('Error submitting form: ' + error.message);
+            }
+        }
+        </script>
+    </div>
+
+    <div class="example-section">
+        <h2>Form with HMAC Signature (Enhanced Security)</h2>
+        <p>For enhanced security, you can include HMAC signatures:</p>
+        
+        <form action="https://forms.youragency.com/v1/contact/world1" method="POST">
+            <div class="form-group">
+                <label for="secure-name">Name:</label>
+                <input type="text" id="secure-name" name="name" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="secure-email">Email:</label>
+                <input type="email" id="secure-email" name="email" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="secure-message">Message:</label>
+                <textarea id="secure-message" name="message" required></textarea>
+            </div>
+            
+            <!-- Hidden fields for HMAC - these would be generated server-side -->
+            <input type="hidden" name="_ts" value="1640995200">
+            <input type="hidden" name="_sig" value="abcdef1234567890abcdef1234567890abcdef12">
+            <input type="text" name="_hp" class="hidden" tabindex="-1">
+            
+            <button type="submit">Send Secure Message</button>
+        </form>
+        
+        <p><small><strong>Note:</strong> In a real implementation, the timestamp (_ts) and signature (_sig) would be generated server-side when the form is rendered.</small></p>
+    </div>
+</body>
+</html>
