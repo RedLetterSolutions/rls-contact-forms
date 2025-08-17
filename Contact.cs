@@ -5,9 +5,8 @@ using System.Text.Json;
 using System.Web;
 using Azure;
 using Azure.Data.Tables;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using SendGrid;
@@ -35,8 +34,8 @@ public class Contact
     }
 
     [Function("Contact")]
-    public async Task<IActionResult> Run(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/contact/{siteId}")] HttpRequest req,
+    public async Task<HttpResponseData> Run(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/contact/{siteId}")] HttpRequestData req,
         string siteId)
     {
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
@@ -48,16 +47,13 @@ public class Contact
             if (siteConfig == null)
             {
                 _logger.LogWarning("Unknown site: {SiteId}", siteId);
-                return new BadRequestObjectResult("Unknown site");
+                return CreateBadRequestResponse(req, "Unknown site");
             }
 
             if (!await CheckRateLimit(siteId, clientIp))
             {
                 _logger.LogWarning("Rate limit exceeded for site {SiteId} from IP {ClientIp}", siteId, clientIp);
-                return new ObjectResult("Rate limit exceeded. Please try again later.")
-                {
-                    StatusCode = 429
-                };
+                return CreateRateLimitResponse(req);
             }
 
             var formData = await ParseRequestData(req);
@@ -65,25 +61,25 @@ public class Contact
             if (IsHoneypotTriggered(formData))
             {
                 _logger.LogInformation("Honeypot triggered for site {SiteId} from IP {ClientIp}", siteId, clientIp);
-                return new RedirectResult(siteConfig.RedirectUrl, false, true);
+                return CreateRedirectResponse(req, siteConfig.RedirectUrl);
             }
 
             if (!ValidateOrigin(req, siteConfig))
             {
                 _logger.LogWarning("Origin validation failed for site {SiteId} from IP {ClientIp}", siteId, clientIp);
-                return new BadRequestObjectResult("Origin not allowed");
+                return CreateBadRequestResponse(req, "Origin not allowed");
             }
 
             if (!ValidateRequiredFields(formData, out var validationError))
             {
                 _logger.LogWarning("Validation failed for site {SiteId}: {Error}", siteId, validationError);
-                return new BadRequestObjectResult(validationError);
+                return CreateBadRequestResponse(req, validationError);
             }
 
             if (!ValidateHmacSignature(formData, siteConfig, siteId))
             {
                 _logger.LogWarning("HMAC validation failed for site {SiteId} from IP {ClientIp}", siteId, clientIp);
-                return new BadRequestObjectResult("Invalid signature");
+                return CreateBadRequestResponse(req, "Invalid signature");
             }
 
             await SendEmail(formData, siteConfig, siteId);
@@ -91,12 +87,12 @@ public class Contact
             _logger.LogInformation("Contact form submitted successfully for site {SiteId} from IP {ClientIp} in {ElapsedMs}ms", 
                 siteId, clientIp, stopwatch.ElapsedMilliseconds);
             
-            return new RedirectResult(siteConfig.RedirectUrl, false, true);
+            return CreateRedirectResponse(req, siteConfig.RedirectUrl);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing contact form for site {SiteId} from IP {ClientIp}", siteId, clientIp);
-            return new BadRequestObjectResult("An error occurred processing your request");
+            return CreateBadRequestResponse(req, "An error occurred processing your request");
         }
     }
 
@@ -122,14 +118,13 @@ public class Contact
         };
     }
 
-    private async Task<Dictionary<string, string>> ParseRequestData(HttpRequest req)
+    private async Task<Dictionary<string, string>> ParseRequestData(HttpRequestData req)
     {
-        var contentType = req.ContentType ?? "";
+        var contentType = req.Headers.GetValues("Content-Type").FirstOrDefault() ?? "";
+        var body = await new StreamReader(req.Body).ReadToEndAsync();
 
         if (contentType.Contains("application/json"))
         {
-            using var reader = new StreamReader(req.Body);
-            var body = await reader.ReadToEndAsync();
             var jsonData = JsonSerializer.Deserialize<Dictionary<string, object>>(body);
             return jsonData?.ToDictionary(
                 kvp => kvp.Key, 
@@ -138,12 +133,9 @@ public class Contact
         }
         else
         {
-            var formData = new Dictionary<string, string>();
-            foreach (var item in req.Form)
-            {
-                formData[item.Key] = item.Value.ToString();
-            }
-            return formData;
+            var formData = System.Web.HttpUtility.ParseQueryString(body);
+            return formData.AllKeys.Where(key => key != null)
+                .ToDictionary(key => key!, key => formData[key] ?? "");
         }
     }
 
@@ -152,9 +144,9 @@ public class Contact
         return formData.TryGetValue("_hp", out var honeypot) && !string.IsNullOrEmpty(honeypot);
     }
 
-    private bool ValidateOrigin(HttpRequest req, SiteConfiguration siteConfig)
+    private bool ValidateOrigin(HttpRequestData req, SiteConfiguration siteConfig)
     {
-        if (!req.Headers.TryGetValue("Origin", out var origins) || !origins.Any())
+        if (!req.Headers.TryGetValues("Origin", out var origins) || !origins.Any())
         {
             return true;
         }
@@ -164,7 +156,7 @@ public class Contact
             return true;
         }
 
-        var origin = origins.First()!;
+        var origin = origins.First();
         return siteConfig.AllowOrigins.Any(allowed => 
             string.Equals(allowed.Trim(), origin, StringComparison.OrdinalIgnoreCase));
     }
@@ -407,19 +399,40 @@ public class Contact
         return statusCode == HttpStatusCode.OK || statusCode == HttpStatusCode.Accepted;
     }
 
-    private static string GetClientIpAddress(HttpRequest req)
+    private static string GetClientIpAddress(HttpRequestData req)
     {
-        if (req.Headers.TryGetValue("X-Forwarded-For", out var forwardedFor))
+        if (req.Headers.TryGetValues("X-Forwarded-For", out var forwardedFor))
         {
-            return forwardedFor.First()!.Split(',')[0].Trim();
+            return forwardedFor.First().Split(',')[0].Trim();
         }
 
-        if (req.Headers.TryGetValue("X-Real-IP", out var realIp))
+        if (req.Headers.TryGetValues("X-Real-IP", out var realIp))
         {
-            return realIp.First()!;
+            return realIp.First();
         }
 
-        return req.HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return "unknown";
+    }
+
+    private static HttpResponseData CreateRedirectResponse(HttpRequestData req, string location)
+    {
+        var response = req.CreateResponse(HttpStatusCode.SeeOther);
+        response.Headers.Add("Location", location);
+        return response;
+    }
+
+    private static HttpResponseData CreateBadRequestResponse(HttpRequestData req, string message)
+    {
+        var response = req.CreateResponse(HttpStatusCode.BadRequest);
+        response.WriteString(message);
+        return response;
+    }
+
+    private static HttpResponseData CreateRateLimitResponse(HttpRequestData req)
+    {
+        var response = req.CreateResponse(HttpStatusCode.TooManyRequests);
+        response.WriteString("Rate limit exceeded. Please try again later.");
+        return response;
     }
 }
 
