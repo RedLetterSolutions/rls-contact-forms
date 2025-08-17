@@ -56,10 +56,11 @@
 			"problemMatcher": "$msCompile"
 		},
 		{
+			"label": "func: host start",
 			"type": "func",
 			"dependsOn": "build (functions)",
 			"options": {
-				"cwd": "${workspaceFolder}/bin/Debug/net8.0"
+				"cwd": "${workspaceFolder}"
 			},
 			"command": "host start",
 			"isBackground": true,
