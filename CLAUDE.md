@@ -7,7 +7,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Local Development
 ```bash
 # Setup local environment
-cd api
 dotnet restore
 cp local.settings.json.example local.settings.json
 # Edit local.settings.json with your SendGrid API key and site configurations
@@ -20,7 +19,6 @@ func start
 ### Build and Deploy
 ```bash
 # Build project
-cd api
 dotnet build --configuration Release
 
 # Publish for deployment
@@ -42,8 +40,9 @@ This is a **multi-tenant Azure Functions service** that handles contact form sub
 
 ### Single Function Entry Point
 - **Route**: `POST /v1/contact/{siteId}` 
-- **File**: `api/Contact.cs` - Contains all business logic in the `ContactFunction` class
+- **File**: `ContactFunction.cs` - Contains all business logic in the `ContactFunction` class
 - **Multi-tenant**: Each `{siteId}` represents a different client website with isolated configuration
+- **Architecture**: Uses ASP.NET Core integration model for Azure Functions v4
 
 ### Configuration-Driven Multi-Tenancy
 Configuration is loaded per-site using the pattern `sites:{siteId}:*`:
@@ -88,7 +87,7 @@ Adding a new client requires **zero code changes**:
 
 ## Configuration Management
 
-**Local**: Copy `api/local.settings.json.example` to `api/local.settings.json` and configure
+**Local**: Copy `local.settings.json.example` to `local.settings.json` and configure
 **Production**: Set environment variables in Azure Function App Configuration
 
 Required global settings: `SENDGRID_API_KEY`, `DEFAULT_FROM_EMAIL`, `AzureWebJobsStorage`

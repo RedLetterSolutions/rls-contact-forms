@@ -86,7 +86,6 @@ sites:acme:secret=your-optional-hmac-secret
 
 ```bash
 # Install dependencies
-cd api
 dotnet restore
 
 # Copy settings template

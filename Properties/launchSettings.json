@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "RLS_Contact_Forms": {
+      "commandName": "Project",
+      "commandLineArgs": "--port 7009",
+      "launchBrowser": false
+    }
+  }
+}

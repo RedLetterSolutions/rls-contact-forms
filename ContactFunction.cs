@@ -3,15 +3,17 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Web;
+using Azure;
 using Azure.Data.Tables;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
-using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using SendGrid;
 using SendGrid.Helpers.Mail;
 
-namespace Api;
+namespace RLS_Contact_Forms;
 
 public class ContactFunction
 {
@@ -33,8 +35,8 @@ public class ContactFunction
     }
 
     [Function("Contact")]
-    public async Task<HttpResponseData> RunAsync(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/contact/{siteId}")] HttpRequestData req,
+    public async Task<IActionResult> RunAsync(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/contact/{siteId}")] HttpRequest req,
         string siteId)
     {
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
@@ -46,13 +48,16 @@ public class ContactFunction
             if (siteConfig == null)
             {
                 _logger.LogWarning("Unknown site: {SiteId}", siteId);
-                return CreateBadRequestResponse(req, "Unknown site");
+                return new BadRequestObjectResult("Unknown site");
             }
 
             if (!await CheckRateLimit(siteId, clientIp))
             {
                 _logger.LogWarning("Rate limit exceeded for site {SiteId} from IP {ClientIp}", siteId, clientIp);
-                return CreateRateLimitResponse(req);
+                return new ObjectResult("Rate limit exceeded. Please try again later.")
+                {
+                    StatusCode = 429
+                };
             }
 
             var formData = await ParseRequestData(req);
@@ -60,25 +65,25 @@ public class ContactFunction
             if (IsHoneypotTriggered(formData))
             {
                 _logger.LogInformation("Honeypot triggered for site {SiteId} from IP {ClientIp}", siteId, clientIp);
-                return CreateRedirectResponse(req, siteConfig.RedirectUrl);
+                return new RedirectResult(siteConfig.RedirectUrl, false, true);
             }
 
             if (!ValidateOrigin(req, siteConfig))
             {
                 _logger.LogWarning("Origin validation failed for site {SiteId} from IP {ClientIp}", siteId, clientIp);
-                return CreateBadRequestResponse(req, "Origin not allowed");
+                return new BadRequestObjectResult("Origin not allowed");
             }
 
             if (!ValidateRequiredFields(formData, out var validationError))
             {
                 _logger.LogWarning("Validation failed for site {SiteId}: {Error}", siteId, validationError);
-                return CreateBadRequestResponse(req, validationError);
+                return new BadRequestObjectResult(validationError);
             }
 
             if (!ValidateHmacSignature(formData, siteConfig, siteId))
             {
                 _logger.LogWarning("HMAC validation failed for site {SiteId} from IP {ClientIp}", siteId, clientIp);
-                return CreateBadRequestResponse(req, "Invalid signature");
+                return new BadRequestObjectResult("Invalid signature");
             }
 
             await SendEmail(formData, siteConfig, siteId);
@@ -86,12 +91,12 @@ public class ContactFunction
             _logger.LogInformation("Contact form submitted successfully for site {SiteId} from IP {ClientIp} in {ElapsedMs}ms", 
                 siteId, clientIp, stopwatch.ElapsedMilliseconds);
             
-            return CreateRedirectResponse(req, siteConfig.RedirectUrl);
+            return new RedirectResult(siteConfig.RedirectUrl, false, true);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing contact form for site {SiteId} from IP {ClientIp}", siteId, clientIp);
-            return CreateBadRequestResponse(req, "An error occurred processing your request");
+            return new BadRequestObjectResult("An error occurred processing your request");
         }
     }
 
@@ -117,13 +122,14 @@ public class ContactFunction
         };
     }
 
-    private async Task<Dictionary<string, string>> ParseRequestData(HttpRequestData req)
+    private async Task<Dictionary<string, string>> ParseRequestData(HttpRequest req)
     {
-        var contentType = req.Headers.GetValues("Content-Type").FirstOrDefault() ?? "";
-        var body = await new StreamReader(req.Body).ReadToEndAsync();
+        var contentType = req.ContentType ?? "";
 
         if (contentType.Contains("application/json"))
         {
+            using var reader = new StreamReader(req.Body);
+            var body = await reader.ReadToEndAsync();
             var jsonData = JsonSerializer.Deserialize<Dictionary<string, object>>(body);
             return jsonData?.ToDictionary(
                 kvp => kvp.Key, 
@@ -132,9 +138,12 @@ public class ContactFunction
         }
         else
         {
-            var formData = HttpUtility.ParseQueryString(body);
-            return formData.AllKeys.Where(key => key != null)
-                .ToDictionary(key => key!, key => formData[key] ?? "");
+            var formData = new Dictionary<string, string>();
+            foreach (var item in req.Form)
+            {
+                formData[item.Key] = item.Value.ToString();
+            }
+            return formData;
         }
     }
 
@@ -143,9 +152,9 @@ public class ContactFunction
         return formData.TryGetValue("_hp", out var honeypot) && !string.IsNullOrEmpty(honeypot);
     }
 
-    private bool ValidateOrigin(HttpRequestData req, SiteConfiguration siteConfig)
+    private bool ValidateOrigin(HttpRequest req, SiteConfiguration siteConfig)
     {
-        if (!req.Headers.TryGetValues("Origin", out var origins) || !origins.Any())
+        if (!req.Headers.TryGetValue("Origin", out var origins) || !origins.Any())
         {
             return true;
         }
@@ -155,7 +164,7 @@ public class ContactFunction
             return true;
         }
 
-        var origin = origins.First();
+        var origin = origins.First()!;
         return siteConfig.AllowOrigins.Any(allowed => 
             string.Equals(allowed.Trim(), origin, StringComparison.OrdinalIgnoreCase));
     }
@@ -309,40 +318,19 @@ public class ContactFunction
         return statusCode == HttpStatusCode.OK || statusCode == HttpStatusCode.Accepted;
     }
 
-    private static string GetClientIpAddress(HttpRequestData req)
+    private static string GetClientIpAddress(HttpRequest req)
     {
-        if (req.Headers.TryGetValues("X-Forwarded-For", out var forwardedFor))
+        if (req.Headers.TryGetValue("X-Forwarded-For", out var forwardedFor))
         {
-            return forwardedFor.First().Split(',')[0].Trim();
+            return forwardedFor.First()!.Split(',')[0].Trim();
         }
 
-        if (req.Headers.TryGetValues("X-Real-IP", out var realIp))
+        if (req.Headers.TryGetValue("X-Real-IP", out var realIp))
         {
-            return realIp.First();
+            return realIp.First()!;
         }
 
-        return "unknown";
-    }
-
-    private static HttpResponseData CreateRedirectResponse(HttpRequestData req, string location)
-    {
-        var response = req.CreateResponse(HttpStatusCode.SeeOther);
-        response.Headers.Add("Location", location);
-        return response;
-    }
-
-    private static HttpResponseData CreateBadRequestResponse(HttpRequestData req, string message)
-    {
-        var response = req.CreateResponse(HttpStatusCode.BadRequest);
-        response.WriteString(message);
-        return response;
-    }
-
-    private static HttpResponseData CreateRateLimitResponse(HttpRequestData req)
-    {
-        var response = req.CreateResponse(HttpStatusCode.TooManyRequests);
-        response.WriteString("Rate limit exceeded. Please try again later.");
-        return response;
+        return req.HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
     }
 }
 
