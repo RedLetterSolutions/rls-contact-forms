@@ -40,7 +40,7 @@ This is a **multi-tenant Azure Functions service** that handles contact form sub
 
 ### Single Function Entry Point
 - **Route**: `POST /v1/contact/{siteId}` 
-- **File**: `ContactFunction.cs` - Contains all business logic in the `ContactFunction` class
+- **File**: `Contact.cs` - Contains all business logic in the `Contact` class
 - **Multi-tenant**: Each `{siteId}` represents a different client website with isolated configuration
 - **Architecture**: Uses ASP.NET Core integration model for Azure Functions v4
 
