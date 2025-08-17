@@ -26,6 +26,7 @@ A **production-ready** .NET Azure Functions service that provides secure, multi-
 
 - ✅ **Multi-tenant**: Support unlimited sites with individual configuration
 - ✅ **Dual input**: HTML form POST + JSON fetch support
+- ✅ **Dynamic metadata**: Collect unlimited custom fields (phone, company, etc.)
 - ✅ **Security**: Honeypot, CORS, HMAC signatures, rate limiting
 - ✅ **Email delivery**: SendGrid integration with HTML/text formats
 - ✅ **Seamless UX**: 303-redirects keep users on their own domain
@@ -69,6 +70,14 @@ sites:acme:secret=your-optional-hmac-secret
     <input name="name" placeholder="Your Name" required>
     <input type="email" name="email" placeholder="Email" required>
     <textarea name="message" placeholder="Message" required></textarea>
+    <!-- Optional metadata fields -->
+    <input name="phone_number" placeholder="Phone Number">
+    <input name="company" placeholder="Company">
+    <select name="budget_range">
+        <option value="">Budget Range</option>
+        <option value="Under $5K">Under $5K</option>
+        <option value="$5K - $15K">$5K - $15K</option>
+    </select>
     <input type="text" name="_hp" style="display:none">
     <button type="submit">Send</button>
 </form>
@@ -177,8 +186,14 @@ For enhanced security, include timestamped signatures:
 
 **Signature computation:**
 ```
-String to sign: {siteId}|{timestamp}|{email}|{name}|{first_200_chars_of_message}
+String to sign: {siteId}|{timestamp}|{email}|{name}|{first_200_chars_of_message}|{metadata_fields}
+Metadata format: field1:value1|field2:value2 (sorted by field name)
 Signature: HMAC-SHA256-hex(string_to_sign, sites:{siteId}:secret)
+```
+
+**Example with metadata:**
+```
+String to sign: acme|1640995200|user@example.com|John|Hello world|budget_range:$5K-$15K|phone_number:555-1234
 ```
 
 ### 4. Rate Limiting
@@ -210,8 +225,25 @@ POST /v1/contact/{siteId}
 | `_hp` | ❌ | Honeypot field (should be empty) |
 | `_ts` | ❌* | Unix timestamp (required if HMAC enabled) |
 | `_sig` | ❌* | HMAC-SHA256 signature (required if HMAC enabled) |
+| **Custom Fields** | ❌ | Any additional fields (e.g., `phone_number`, `company`) |
 
 *Required only if `sites:{siteId}:secret` is configured.
+
+### Dynamic Metadata Support
+
+The contact form supports **unlimited custom fields** that will be automatically included in the email. Any form field not in the core list (`name`, `email`, `message`, `_hp`, `_ts`, `_sig`) is treated as metadata.
+
+**Examples:**
+- `phone_number` → "Phone Number" in email
+- `company` → "Company" in email  
+- `budget_range` → "Budget Range" in email
+- `project_timeline` → "Project Timeline" in email
+
+**Field Name Formatting:**
+- Underscores and hyphens become spaces
+- First letter of each word is capitalized
+- `phone_number` becomes "Phone Number"
+- `budget-range` becomes "Budget Range"
 
 ### Response Codes
 

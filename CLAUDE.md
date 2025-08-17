@@ -63,18 +63,28 @@ The function processes requests through multiple security layers in sequence:
 ### Request Processing Flow
 1. Parse both `application/x-www-form-urlencoded` and `application/json` content types
 2. Apply security pipeline (rate limit → honeypot → origin → HMAC → validation)
-3. Send email via SendGrid with both HTML and text formats
-4. Return **303 See Other** redirect to keep users on their domain
+3. Extract core fields (name, email, message) and metadata fields (any additional fields)
+4. Send email via SendGrid with both HTML and text formats including all metadata
+5. Return **303 See Other** redirect to keep users on their domain
+
+### Dynamic Metadata Support
+The service automatically detects and includes any form fields beyond the core set:
+- **Core fields**: `name`, `email`, `message`, `_hp`, `_ts`, `_sig`
+- **Metadata fields**: Any other field (e.g., `phone_number`, `company`, `budget_range`)
+- **Email formatting**: Metadata appears in a formatted table in HTML emails and structured list in text emails
+- **Field name formatting**: `phone_number` becomes "Phone Number", `budget-range` becomes "Budget Range"
 
 ### Key Implementation Details
 
 **Rate Limiting**: Uses Azure Table Storage with PartitionKey=`siteId`, RowKey=`{ip}:{yyyyMMddHHmm}`. Creates entity if not exists, returns 429 if already exists.
 
-**HMAC Security**: String to sign format: `{siteId}|{timestamp}|{email}|{name}|{first_200_chars_of_message}`. Uses HMAC-SHA256 with constant-time comparison.
+**HMAC Security**: String to sign format: `{siteId}|{timestamp}|{email}|{name}|{first_200_chars_of_message}|{metadata_fields}`. Metadata fields are sorted by key and formatted as `key:value|key:value`. Uses HMAC-SHA256 with constant-time comparison.
 
 **Email Format**: 
 - Subject: `New contact ({siteId}) from {name}`
 - Dual format: plain text and HTML with proper escaping
+- Includes core fields and all metadata fields with formatted names
+- HTML version uses a styled table for metadata display
 
 **Error Handling**: All errors return user-friendly messages while detailed errors are logged. SendGrid failures are logged but don't block the user flow.
 

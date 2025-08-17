@@ -217,7 +217,11 @@ public class ContactFunction
         var message = formData.GetValueOrDefault("message", "");
         var messagePrefix = message.Length > 200 ? message.Substring(0, 200) : message;
 
-        var stringToSign = $"{siteId}|{timestamp}|{email}|{name}|{messagePrefix}";
+        // Include metadata fields in signature for enhanced security
+        var metadata = GetMetadataFields(formData);
+        var metadataString = string.Join("|", metadata.OrderBy(kvp => kvp.Key).Select(kvp => $"{kvp.Key}:{kvp.Value}"));
+
+        var stringToSign = $"{siteId}|{timestamp}|{email}|{name}|{messagePrefix}|{metadataString}";
         var expectedSignature = ComputeHmacSha256(stringToSign, siteConfig.Secret);
 
         return ConstantTimeEquals(signature, expectedSignature);
@@ -293,8 +297,10 @@ public class ContactFunction
             var message = formData.GetValueOrDefault("message", "");
 
             var subject = $"New contact ({siteId}) from {name}";
-            var textContent = $"From: {name} <{email}>\n\n{message}";
-            var htmlContent = $"<p><b>From:</b> {HttpUtility.HtmlEncode(name)} &lt;{HttpUtility.HtmlEncode(email)}&gt;</p><p>{HttpUtility.HtmlEncode(message)}</p>";
+            
+            // Build email content with core fields and metadata
+            var textContent = BuildTextEmailContent(formData);
+            var htmlContent = BuildHtmlEmailContent(formData);
 
             var from = new EmailAddress(siteConfig.FromEmail, "Website Contact");
             var to = new EmailAddress(siteConfig.ToEmail);
@@ -311,6 +317,89 @@ public class ContactFunction
         {
             _logger.LogWarning(ex, "Failed to send email for site {SiteId}", siteId);
         }
+    }
+
+    private string BuildTextEmailContent(Dictionary<string, string> formData)
+    {
+        var content = new StringBuilder();
+        var name = formData.GetValueOrDefault("name", "Anonymous");
+        var email = formData.GetValueOrDefault("email", "");
+        var message = formData.GetValueOrDefault("message", "");
+
+        content.AppendLine($"From: {name} <{email}>");
+        content.AppendLine();
+        content.AppendLine($"Message: {message}");
+
+        // Add metadata fields
+        var metadata = GetMetadataFields(formData);
+        if (metadata.Any())
+        {
+            content.AppendLine();
+            content.AppendLine("Additional Information:");
+            content.AppendLine("------------------------");
+            foreach (var field in metadata)
+            {
+                var fieldName = FormatFieldName(field.Key);
+                content.AppendLine($"{fieldName}: {field.Value}");
+            }
+        }
+
+        return content.ToString();
+    }
+
+    private string BuildHtmlEmailContent(Dictionary<string, string> formData)
+    {
+        var content = new StringBuilder();
+        var name = formData.GetValueOrDefault("name", "Anonymous");
+        var email = formData.GetValueOrDefault("email", "");
+        var message = formData.GetValueOrDefault("message", "");
+
+        content.AppendLine("<div style='font-family: Arial, sans-serif; max-width: 600px;'>");
+        content.AppendLine($"<p><b>From:</b> {HttpUtility.HtmlEncode(name)} &lt;{HttpUtility.HtmlEncode(email)}&gt;</p>");
+        content.AppendLine($"<p><b>Message:</b></p>");
+        content.AppendLine($"<p>{HttpUtility.HtmlEncode(message).Replace("\n", "<br>")}</p>");
+
+        // Add metadata fields
+        var metadata = GetMetadataFields(formData);
+        if (metadata.Any())
+        {
+            content.AppendLine("<hr style='margin: 20px 0; border: none; border-top: 1px solid #ddd;'>");
+            content.AppendLine("<h3 style='color: #333; font-size: 16px; margin-bottom: 10px;'>Additional Information</h3>");
+            content.AppendLine("<table style='width: 100%; border-collapse: collapse;'>");
+            
+            foreach (var field in metadata)
+            {
+                var fieldName = FormatFieldName(field.Key);
+                content.AppendLine("<tr>");
+                content.AppendLine($"<td style='padding: 8px 0; border-bottom: 1px solid #eee; font-weight: bold; width: 30%;'>{HttpUtility.HtmlEncode(fieldName)}:</td>");
+                content.AppendLine($"<td style='padding: 8px 0; border-bottom: 1px solid #eee;'>{HttpUtility.HtmlEncode(field.Value)}</td>");
+                content.AppendLine("</tr>");
+            }
+            
+            content.AppendLine("</table>");
+        }
+
+        content.AppendLine("</div>");
+        return content.ToString();
+    }
+
+    private Dictionary<string, string> GetMetadataFields(Dictionary<string, string> formData)
+    {
+        // Core fields that are not metadata
+        var coreFields = new HashSet<string> { "name", "email", "message", "_hp", "_ts", "_sig" };
+        
+        return formData
+            .Where(kvp => !coreFields.Contains(kvp.Key.ToLowerInvariant()) && !string.IsNullOrWhiteSpace(kvp.Value))
+            .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+    }
+
+    private string FormatFieldName(string fieldName)
+    {
+        // Convert field names like "phone_number" to "Phone Number"
+        return string.Join(" ", fieldName.Split('_', '-'))
+            .Split(' ')
+            .Select(word => char.ToUpperInvariant(word[0]) + word[1..].ToLowerInvariant())
+            .Aggregate((a, b) => $"{a} {b}");
     }
 
     private static bool IsSuccessStatusCode(HttpStatusCode statusCode)
