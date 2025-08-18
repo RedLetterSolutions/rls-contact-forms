@@ -65,6 +65,56 @@ sites:acme:secret=your-optional-hmac-secret
 
 ### 3. Add Form to Your Website
 
+Choose between two integration methods:
+
+#### Option A: JavaScript API (Recommended) 🚀
+
+**1. Include the RLS Contact API:**
+```html
+<script src="https://cdn.jsdelivr.net/gh/RedLetterSolutions/rls-contact-forms@main/rls-contact-api.min.js"></script>
+```
+
+**2. Initialize with your site ID:**
+```html
+<script>
+RLSContact.init({
+    siteId: 'your-site-id'
+});
+</script>
+```
+
+**3. Add your contact form:**
+```html
+<form data-rls-contact="your-site-id">
+    <!-- Honeypot field (required for spam protection) -->
+    <input type="text" name="_hp" style="display:none;" tabindex="-1" autocomplete="off">
+    
+    <input name="name" placeholder="Your Name" required>
+    <input type="email" name="email" placeholder="Email" required>
+    <textarea name="message" placeholder="Message" required></textarea>
+    
+    <!-- Optional metadata fields -->
+    <input name="phone_number" placeholder="Phone Number">
+    <input name="company" placeholder="Company">
+    <select name="budget_range">
+        <option value="">Budget Range</option>
+        <option value="Under $5K">Under $5K</option>
+        <option value="$5K - $15K">$5K - $15K</option>
+    </select>
+    
+    <button type="submit">Send Message</button>
+</form>
+```
+
+That's it! The API handles everything automatically:
+- ✅ Form submission and validation
+- ✅ Loading states and user feedback  
+- ✅ Error handling and retry
+- ✅ CORS and security
+- ✅ Success redirects
+
+#### Option B: Direct HTML Form
+
 ```html
 <form action="https://your-function-app.azurewebsites.net/v1/contact/acme" method="POST">
     <input name="name" placeholder="Your Name" required>
@@ -252,6 +302,255 @@ The contact form supports **unlimited custom fields** that will be automatically
 | `303` | Success - redirects to `sites:{siteId}:redirect_url` |
 | `400` | Bad request (missing fields, invalid signature, unknown site) |
 | `429` | Rate limit exceeded |
+
+## JavaScript API Reference
+
+### CDN URL
+
+```html
+<!-- Latest version -->
+<script src="https://cdn.jsdelivr.net/gh/RedLetterSolutions/rls-contact-forms@main/rls-contact-api.min.js"></script>
+
+<!-- Specific version (recommended for production) -->
+<script src="https://cdn.jsdelivr.net/gh/RedLetterSolutions/rls-contact-forms@479cc1d/rls-contact-api.min.js"></script>
+```
+
+### Basic Usage
+
+```html
+<script>
+RLSContact.init({
+    siteId: 'your-site-id',
+    debug: false  // Set to true for development
+});
+</script>
+```
+
+### Configuration Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `siteId` | string | **required** | Your site identifier |
+| `apiUrl` | string | `https://rls-contact-form-d3bbb0f6avhtgxb5.eastus-01.azurewebsites.net` | API endpoint URL |
+| `useRedirect` | boolean | `true` | Whether to follow server redirects |
+| `debug` | boolean | `false` | Enable console logging |
+
+### Auto-Attach Forms
+
+The simplest way to use the API is with auto-attach:
+
+```html
+<!-- The API will automatically find and attach to this form -->
+<form data-rls-contact="your-site-id">
+    <input type="text" name="_hp" style="display:none;">
+    <input type="text" name="name" required>
+    <input type="email" name="email" required>
+    <textarea name="message" required></textarea>
+    <button type="submit">Send Message</button>
+</form>
+```
+
+### Form Data Attributes
+
+| Attribute | Description | Example |
+|-----------|-------------|---------|
+| `data-rls-contact` | Site ID for this form | `data-rls-contact="acme"` |
+| `data-rls-redirect` | Disable redirect (use "false") | `data-rls-redirect="false"` |
+| `data-rls-on-success` | Custom success function name | `data-rls-on-success="handleSuccess"` |
+| `data-rls-on-error` | Custom error function name | `data-rls-on-error="handleError"` |
+
+### Custom Success/Error Handling
+
+```html
+<form data-rls-contact="your-site-id" 
+      data-rls-on-success="mySuccessHandler" 
+      data-rls-on-error="myErrorHandler">
+    <!-- form fields -->
+</form>
+
+<script>
+function mySuccessHandler(result) {
+    console.log('Form submitted successfully!', result);
+    // Show custom success message
+    document.getElementById('success-banner').style.display = 'block';
+}
+
+function myErrorHandler(error) {
+    console.error('Form submission failed:', error);
+    // Show custom error message
+    alert('Error: ' + error.message);
+}
+</script>
+```
+
+### Programmatic Usage
+
+```javascript
+// Submit data directly
+RLSContact.submit({
+    name: 'John Doe',
+    email: 'john@example.com',
+    message: 'Hello from the API!',
+    company: 'Acme Corp',
+    phone_number: '555-1234'
+}, {
+    siteId: 'your-site-id',
+    useRedirect: false
+}).then(result => {
+    console.log('Success:', result);
+}).catch(error => {
+    console.error('Error:', error);
+});
+
+// Submit a form element
+const form = document.getElementById('my-form');
+RLSContact.submitForm(form)
+    .then(result => console.log('Success'))
+    .catch(error => console.error('Error'));
+```
+
+### API Methods
+
+#### RLSContact.init(options)
+Initialize the API with configuration.
+
+#### RLSContact.submit(formData, options)
+Submit form data programmatically.
+- **formData**: Object with form fields
+- **options**: Override config options for this submission
+- **Returns**: Promise that resolves with result
+
+#### RLSContact.submitForm(formElement, options)
+Submit a form element.
+- **formElement**: HTML form element
+- **options**: Override config options
+- **Returns**: Promise that resolves with result
+
+#### RLSContact.extractFormData(formElement)
+Extract data from form element as object.
+- **formElement**: HTML form element
+- **Returns**: Object with form field data
+
+#### RLSContact.validate(formData)
+Validate form data (client-side).
+- **formData**: Object with form fields
+- **Returns**: `{isValid: boolean, errors: string[]}`
+
+#### RLSContact.refresh()
+Manually refresh auto-attach for dynamically added forms.
+
+#### RLSContact.attachToForm(formElement, options)
+Manually attach event listener to a specific form.
+
+### Advanced Examples
+
+#### Multiple Forms on One Page
+```html
+<!-- Contact form -->
+<form data-rls-contact="acme" data-rls-on-success="contactSuccess">
+    <!-- fields -->
+</form>
+
+<!-- Quote request form -->
+<form data-rls-contact="acme" data-rls-on-success="quoteSuccess">
+    <input type="hidden" name="form_type" value="quote">
+    <!-- fields -->
+</form>
+```
+
+#### Dynamic Form Loading
+```javascript
+// After adding forms dynamically to the page
+RLSContact.refresh();
+
+// Or attach to a specific new form
+const newForm = document.getElementById('dynamic-form');
+RLSContact.attachToForm(newForm);
+```
+
+#### Custom Validation
+```javascript
+document.getElementById('my-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    
+    const formData = RLSContact.extractFormData(e.target);
+    const validation = RLSContact.validate(formData);
+    
+    if (!validation.isValid) {
+        alert('Please fix: ' + validation.errors.join(', '));
+        return;
+    }
+    
+    // Add custom validation
+    if (formData.company && formData.company.length < 2) {
+        alert('Company name must be at least 2 characters');
+        return;
+    }
+    
+    RLSContact.submitForm(e.target);
+});
+```
+
+#### Loading States
+The API automatically handles button loading states, but you can customize:
+
+```css
+/* Style the API's built-in messages */
+.rls-contact-message {
+    padding: 10px;
+    margin: 10px 0;
+    border-radius: 4px;
+}
+
+.rls-contact-success {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.rls-contact-error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+```
+
+### Browser Support
+- Modern browsers (Chrome, Firefox, Safari, Edge)
+- IE11+ (with fetch polyfill)
+
+### File Sizes
+- Full version: ~8KB
+- Minified version: ~3KB  
+- Gzipped: ~1.2KB
+
+### Troubleshooting
+
+#### API Not Loading
+```javascript
+// Check if API loaded correctly
+if (typeof RLSContact === 'undefined') {
+    console.error('RLS Contact API failed to load');
+}
+```
+
+#### Forms Not Auto-Attaching
+```javascript
+// Enable debug mode to see what's happening
+RLSContact.init({
+    siteId: 'your-site-id',
+    debug: true  // Check console for auto-attach messages
+});
+
+// Manually refresh if needed
+RLSContact.refresh();
+```
+
+#### CORS Issues
+Make sure your domain is added to the Azure Function configuration:
+```
+sites:your-site-id:allow_origins=https://yourdomain.com,https://www.yourdomain.com
+```
 
 ## Email Format
 
