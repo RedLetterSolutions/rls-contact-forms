@@ -147,9 +147,16 @@ public class Contact
         }
     }
 
-    private static bool IsHoneypotTriggered(Dictionary<string, string> formData)
+    private bool IsHoneypotTriggered(Dictionary<string, string> formData)
     {
-        return formData.TryGetValue("_hp", out var honeypot) && !string.IsNullOrEmpty(honeypot);
+        var triggered = formData.TryGetValue("_hp", out var honeypot) && !string.IsNullOrEmpty(honeypot);
+        
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug("Honeypot check: _hp field = '{HoneypotValue}', triggered = {Triggered}", honeypot ?? "null", triggered);
+        }
+        
+        return triggered;
     }
 
     private bool ValidateOrigin(HttpRequestData req, SiteConfiguration siteConfig)

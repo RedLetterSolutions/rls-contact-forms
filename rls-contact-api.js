@@ -68,8 +68,8 @@
                 }
             }
 
-            // Add honeypot field (empty by default)
-            if (!formData._hp) {
+            // Add honeypot field if not present (should be empty)
+            if (!formData.hasOwnProperty('_hp')) {
                 urlEncodedData.append('_hp', '');
             }
 
