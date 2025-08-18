@@ -35,9 +35,17 @@ public class Contact
 
     [Function("Contact")]
     public async Task<HttpResponseData> Run(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/contact/{siteId}")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", "options", Route = "v1/contact/{siteId}")] HttpRequestData req,
         string siteId)
     {
+        // Handle preflight OPTIONS requests
+        if (req.Method.Equals("OPTIONS", StringComparison.OrdinalIgnoreCase))
+        {
+            var optionsResponse = req.CreateResponse(HttpStatusCode.OK);
+            AddCorsHeaders(optionsResponse);
+            return optionsResponse;
+        }
+
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         var clientIp = GetClientIpAddress(req);
         
@@ -418,6 +426,7 @@ public class Contact
     {
         var response = req.CreateResponse(HttpStatusCode.SeeOther);
         response.Headers.Add("Location", location);
+        AddCorsHeaders(response);
         return response;
     }
 
@@ -425,6 +434,7 @@ public class Contact
     {
         var response = req.CreateResponse(HttpStatusCode.BadRequest);
         response.WriteString(message);
+        AddCorsHeaders(response);
         return response;
     }
 
@@ -432,7 +442,15 @@ public class Contact
     {
         var response = req.CreateResponse(HttpStatusCode.TooManyRequests);
         response.WriteString("Rate limit exceeded. Please try again later.");
+        AddCorsHeaders(response);
         return response;
+    }
+
+    private static void AddCorsHeaders(HttpResponseData response)
+    {
+        response.Headers.Add("Access-Control-Allow-Origin", "*");
+        response.Headers.Add("Access-Control-Allow-Methods", "POST, OPTIONS");
+        response.Headers.Add("Access-Control-Allow-Headers", "Content-Type");
     }
 }
 
