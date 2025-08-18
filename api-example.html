@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RLS Contact API Example</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .example {
+            background: #f5f5f5;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, textarea, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #007cba;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #005a87;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        code {
+            background: #f0f0f0;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+        pre {
+            background: #f0f0f0;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .honeypot {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>RLS Contact API Examples</h1>
+    
+    <h2>1. Simple Auto-Attach Example</h2>
+    <p>Just add <code>data-rls-contact="your-site-id"</code> to your form:</p>
+    
+    <div class="example">
+        <form data-rls-contact="test">
+            <input type="text" name="_hp" class="honeypot" tabindex="-1" autocomplete="off">
+            
+            <div class="form-group">
+                <label for="name1">Name</label>
+                <input type="text" id="name1" name="name" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="email1">Email</label>
+                <input type="email" id="email1" name="email" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="message1">Message</label>
+                <textarea id="message1" name="message" required></textarea>
+            </div>
+            
+            <button type="submit">Send Message</button>
+        </form>
+    </div>
+
+    <pre><code>&lt;form data-rls-contact="test"&gt;
+    &lt;input type="text" name="_hp" style="display:none;" tabindex="-1" autocomplete="off"&gt;
+    
+    &lt;div&gt;
+        &lt;label for="name"&gt;Name&lt;/label&gt;
+        &lt;input type="text" name="name" required&gt;
+    &lt;/div&gt;
+    
+    &lt;div&gt;
+        &lt;label for="email"&gt;Email&lt;/label&gt;
+        &lt;input type="email" name="email" required&gt;
+    &lt;/div&gt;
+    
+    &lt;div&gt;
+        &lt;label for="message"&gt;Message&lt;/label&gt;
+        &lt;textarea name="message" required&gt;&lt;/textarea&gt;
+    &lt;/div&gt;
+    
+    &lt;button type="submit"&gt;Send Message&lt;/button&gt;
+&lt;/form&gt;</code></pre>
+
+    <h2>2. With Custom Success/Error Handlers</h2>
+    <p>Use <code>data-rls-on-success</code> and <code>data-rls-on-error</code> for custom behavior:</p>
+    
+    <div class="example">
+        <form data-rls-contact="test" data-rls-redirect="false" data-rls-on-success="handleSuccess" data-rls-on-error="handleError">
+            <input type="text" name="_hp" class="honeypot" tabindex="-1" autocomplete="off">
+            
+            <div class="form-group">
+                <label for="name2">Name</label>
+                <input type="text" id="name2" name="name" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="email2">Email</label>
+                <input type="email" id="email2" name="email" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="company2">Company</label>
+                <input type="text" id="company2" name="company">
+            </div>
+            
+            <div class="form-group">
+                <label for="message2">Message</label>
+                <textarea id="message2" name="message" required></textarea>
+            </div>
+            
+            <button type="submit">Send Message</button>
+        </form>
+        
+        <div id="custom-status" style="margin-top: 10px;"></div>
+    </div>
+
+    <h2>3. Programmatic Usage</h2>
+    <p>Call the API directly from JavaScript:</p>
+    
+    <div class="example">
+        <button onclick="sendProgrammatically()">Send Test Message</button>
+        <div id="programmatic-result" style="margin-top: 10px;"></div>
+    </div>
+
+    <h2>Setup</h2>
+    <p>Include the script and initialize with your site ID:</p>
+    
+    <pre><code>&lt;script src="https://your-cdn.com/rls-contact-api.js"&gt;&lt;/script&gt;
+&lt;script&gt;
+    RLSContact.init({
+        siteId: 'your-site-id',
+        debug: true  // Enable for development
+    });
+&lt;/script&gt;</code></pre>
+
+    <h2>API Options</h2>
+    <ul>
+        <li><strong>siteId</strong> (required): Your site identifier</li>
+        <li><strong>apiUrl</strong> (optional): Custom API endpoint</li>
+        <li><strong>useRedirect</strong> (default: true): Whether to follow redirects</li>
+        <li><strong>debug</strong> (default: false): Enable console logging</li>
+    </ul>
+
+    <h2>Form Data Attributes</h2>
+    <ul>
+        <li><strong>data-rls-contact</strong>: Site ID for this form</li>
+        <li><strong>data-rls-redirect</strong>: "false" to disable redirect</li>
+        <li><strong>data-rls-on-success</strong>: Function name to call on success</li>
+        <li><strong>data-rls-on-error</strong>: Function name to call on error</li>
+    </ul>
+
+    <!-- Include the RLS Contact API -->
+    <script src="rls-contact-api.js"></script>
+    
+    <!-- Initialize -->
+    <script>
+        // Initialize the API
+        RLSContact.init({
+            siteId: 'test',
+            debug: true
+        });
+
+        // Custom success handler
+        function handleSuccess(result) {
+            document.getElementById('custom-status').innerHTML = 
+                '<div style="color: green; padding: 10px; background: #d4edda; border-radius: 4px;">✅ Custom success handler called!</div>';
+        }
+
+        // Custom error handler
+        function handleError(error) {
+            document.getElementById('custom-status').innerHTML = 
+                '<div style="color: red; padding: 10px; background: #f8d7da; border-radius: 4px;">❌ Error: ' + error.message + '</div>';
+        }
+
+        // Programmatic usage example
+        function sendProgrammatically() {
+            const resultDiv = document.getElementById('programmatic-result');
+            resultDiv.innerHTML = '<div style="color: blue;">Sending...</div>';
+            
+            RLSContact.submit({
+                name: 'API Test User',
+                email: 'test@example.com',
+                message: 'This message was sent via the JavaScript API!',
+                source: 'programmatic'
+            }, {
+                useRedirect: false
+            })
+            .then(result => {
+                resultDiv.innerHTML = '<div style="color: green; padding: 10px; background: #d4edda; border-radius: 4px;">✅ Message sent successfully!</div>';
+            })
+            .catch(error => {
+                resultDiv.innerHTML = '<div style="color: red; padding: 10px; background: #f8d7da; border-radius: 4px;">❌ Error: ' + error.message + '</div>';
+            });
+        }
+    </script>
+</body>
+</html>
