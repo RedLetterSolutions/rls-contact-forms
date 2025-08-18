@@ -40,7 +40,13 @@
             this.log('Initialized with config:', this.config);
 
             // Auto-attach to forms with data-rls-contact attribute
-            this.autoAttach();
+            if (document.readyState === 'loading') {
+                // DOM not ready yet
+                document.addEventListener('DOMContentLoaded', () => this.autoAttach());
+            } else {
+                // DOM is ready
+                this.autoAttach();
+            }
         },
 
         /**
@@ -133,10 +139,25 @@
         autoAttach: function() {
             const forms = document.querySelectorAll('form[data-rls-contact]');
             
-            forms.forEach(form => {
-                this.log('Auto-attaching to form:', form);
+            this.log('Auto-attach: Found', forms.length, 'forms with data-rls-contact attribute');
+            
+            if (forms.length === 0) {
+                this.log('No forms found with data-rls-contact attribute. Make sure your forms have this attribute.');
+            }
+            
+            forms.forEach((form, index) => {
+                const siteId = form.dataset.rlsContact || this.config.siteId;
+                this.log(`Auto-attaching to form ${index + 1}:`, form, 'with siteId:', siteId);
                 this.attachToForm(form);
             });
+        },
+
+        /**
+         * Manually refresh auto-attach (useful for dynamically added forms)
+         */
+        refresh: function() {
+            this.log('Manually refreshing auto-attach');
+            this.autoAttach();
         },
 
         /**
