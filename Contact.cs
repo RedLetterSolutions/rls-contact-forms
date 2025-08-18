@@ -308,7 +308,11 @@ public class Contact
 
             var response = await _sendGridClient.SendEmailAsync(msg);
             
-            if (!IsSuccessStatusCode(response.StatusCode))
+            if (IsSuccessStatusCode(response.StatusCode))
+            {
+                _logger.LogInformation("Email sent successfully for site {SiteId} to {ToEmail}", siteId, siteConfig.ToEmail);
+            }
+            else
             {
                 _logger.LogWarning("SendGrid returned non-success status: {StatusCode}", response.StatusCode);
             }

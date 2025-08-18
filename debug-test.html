@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RLS Contact API Debug</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+        .debug { background: #f0f0f0; padding: 15px; margin: 10px 0; border-radius: 4px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, textarea { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        button { background: #007cba; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
+        .honeypot { display: none; }
+    </style>
+</head>
+<body>
+    <h1>RLS Contact API Debug Test</h1>
+    
+    <div class="debug">
+        <h3>Test 1: With Redirect Disabled (Recommended)</h3>
+        <form data-rls-contact="test" data-rls-redirect="false" data-rls-on-success="debugSuccess" data-rls-on-error="debugError">
+            <input type="text" name="_hp" class="honeypot">
+            
+            <div class="form-group">
+                <label>Name</label>
+                <input type="text" name="name" value="Debug Test" required>
+            </div>
+            
+            <div class="form-group">
+                <label>Email</label>
+                <input type="email" name="email" value="test@example.com" required>
+            </div>
+            
+            <div class="form-group">
+                <label>Message</label>
+                <textarea name="message" required>This is a debug test message.</textarea>
+            </div>
+            
+            <button type="submit">Test Without Redirect</button>
+        </form>
+        <div id="result1" style="margin-top: 10px;"></div>
+    </div>
+
+    <div class="debug">
+        <h3>Test 2: Direct API Call</h3>
+        <button onclick="testDirectAPI()">Test Direct API Call</button>
+        <div id="result2" style="margin-top: 10px;"></div>
+    </div>
+
+    <div class="debug">
+        <h3>Test 3: Check Redirect URL</h3>
+        <button onclick="checkRedirect()">Check What Redirect URL Azure Returns</button>
+        <div id="result3" style="margin-top: 10px;"></div>
+    </div>
+
+    <div class="debug">
+        <h3>Test 4: Check Current Config</h3>
+        <button onclick="checkConfig()">Check API Configuration</button>
+        <div id="result4" style="margin-top: 10px;"></div>
+    </div>
+
+    <div class="debug">
+        <h3>Debug Log</h3>
+        <div id="debug-log" style="background: black; color: green; padding: 10px; font-family: monospace; max-height: 200px; overflow-y: auto;"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/gh/RedLetterSolutions/rls-contact-forms@main/rls-contact-api.min.js"></script>
+    <script>
+        // Initialize with debug enabled
+        RLSContact.init({
+            siteId: 'test',
+            debug: true
+        });
+
+        // Capture console logs
+        const originalLog = console.log;
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            const debugLog = document.getElementById('debug-log');
+            if (debugLog && args[0] && args[0].includes && args[0].includes('[RLSContact]')) {
+                debugLog.innerHTML += args.join(' ') + '\n';
+                debugLog.scrollTop = debugLog.scrollHeight;
+            }
+        };
+
+        function debugSuccess(result) {
+            document.getElementById('result1').innerHTML = 
+                '<div style="color: green; padding: 10px; background: #d4edda; border-radius: 4px;">' +
+                '✅ SUCCESS: ' + JSON.stringify(result, null, 2) + '</div>';
+        }
+
+        function debugError(error) {
+            document.getElementById('result1').innerHTML = 
+                '<div style="color: red; padding: 10px; background: #f8d7da; border-radius: 4px;">' +
+                '❌ ERROR: ' + error.message + '</div>';
+        }
+
+        function testDirectAPI() {
+            const resultDiv = document.getElementById('result2');
+            resultDiv.innerHTML = '<div style="color: blue;">Testing direct API call...</div>';
+            
+            RLSContact.submit({
+                name: 'Direct API Test',
+                email: 'api-test@example.com',
+                message: 'This is a direct API test call.',
+                _hp: ''
+            }, {
+                useRedirect: false,
+                siteId: 'test'
+            })
+            .then(result => {
+                resultDiv.innerHTML = '<div style="color: green; padding: 10px; background: #d4edda; border-radius: 4px;">✅ Direct API Success: ' + JSON.stringify(result, null, 2) + '</div>';
+            })
+            .catch(error => {
+                resultDiv.innerHTML = '<div style="color: red; padding: 10px; background: #f8d7da; border-radius: 4px;">❌ Direct API Error: ' + error.message + '</div>';
+            });
+        }
+
+        function checkRedirect() {
+            const resultDiv = document.getElementById('result3');
+            resultDiv.innerHTML = '<div style="color: blue;">Checking redirect URL...</div>';
+
+            fetch('https://rls-contact-form-d3bbb0f6avhtgxb5.eastus-01.azurewebsites.net/api/v1/contact/test', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: '_hp=&name=Debug&email=debug@test.com&message=Checking redirect URL',
+                redirect: 'manual'
+            }).then(response => {
+                const location = response.headers.get('Location');
+                resultDiv.innerHTML = 
+                    '<div style="background: #fff3cd; padding: 10px; border-radius: 4px;">' +
+                    '<strong>Azure Function Response:</strong><br>' +
+                    'Status: ' + response.status + '<br>' +
+                    'Redirect Location: ' + (location || 'None') + '<br>' +
+                    'Type: ' + response.type +
+                    '</div>';
+            }).catch(error => {
+                resultDiv.innerHTML = 
+                    '<div style="color: red; padding: 10px; background: #f8d7da; border-radius: 4px;">' +
+                    'Error checking redirect: ' + error.message + '</div>';
+            });
+        }
+
+        function checkConfig() {
+            const config = RLSContact.config;
+            document.getElementById('result4').innerHTML = 
+                '<div style="background: #e7f3ff; padding: 10px; border-radius: 4px;">' +
+                '<strong>Current Configuration:</strong><br>' +
+                'API URL: ' + config.apiUrl + '<br>' +
+                'Site ID: ' + config.siteId + '<br>' +
+                'Use Redirect: ' + config.useRedirect + '<br>' +
+                'Debug: ' + config.debug +
+                '</div>';
+        }
+
+        // Auto-check config on load
+        setTimeout(checkConfig, 1000);
+    </script>
+</body>
+</html>

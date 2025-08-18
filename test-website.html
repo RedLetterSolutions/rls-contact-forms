@@ -82,22 +82,38 @@
             border: 1px solid #f5c6cb;
             color: #721c24;
         }
+        .form-complete {
+            text-align: center;
+            padding: 40px;
+        }
+        .form-complete h2 {
+            color: #155724;
+            margin-bottom: 20px;
+        }
+        .form-complete p {
+            color: #666;
+            font-size: 18px;
+        }
+        .hidden {
+            display: none;
+        }
     </style>
 </head>
 <body>
     <div class="form-container">
-        <h1>Contact Form Test</h1>
-        
-        <div class="site-selector">
-            <label for="siteId">Test Site ID:</label>
-            <select id="siteId" onchange="updateFormAction()">
-                <option value="test">test (live function)</option>
-                <option value="world1">world1 (local test)</option>
-                <option value="testsite">testsite (custom test)</option>
-            </select>
-        </div>
+        <div id="form-section">
+            <h1>Contact Form Test</h1>
+            
+            <div class="site-selector">
+                <label for="siteId">Test Site ID:</label>
+                <select id="siteId" onchange="updateFormAction()">
+                    <option value="test">test (live function)</option>
+                    <option value="world1">world1 (local test)</option>
+                    <option value="testsite">testsite (custom test)</option>
+                </select>
+            </div>
 
-        <form id="contactForm" action="https://rls-contact-form-d3bbb0f6avhtgxb5.eastus-01.azurewebsites.net/api/v1/contact/test" method="POST">
+            <form id="contactForm" action="https://rls-contact-form-d3bbb0f6avhtgxb5.eastus-01.azurewebsites.net/api/v1/contact/test" method="POST">
             <!-- Honeypot field (hidden) -->
             <input type="text" name="_hp" class="honeypot" tabindex="-1" autocomplete="off">
             
@@ -138,9 +154,16 @@
             </div>
             
             <button type="submit">Send Message</button>
-        </form>
+            </form>
+            
+            <div id="status" class="status"></div>
+        </div>
         
-        <div id="status" class="status"></div>
+        <div id="success-section" class="form-complete hidden">
+            <h2>✅ Message Sent Successfully!</h2>
+            <p>Thank you for your message. We'll get back to you soon.</p>
+            <button onclick="showForm()" style="margin-top: 20px; background-color: #007cba; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer;">Send Another Message</button>
+        </div>
     </div>
 
     <script>
@@ -156,11 +179,26 @@
         }
 
         document.getElementById('contactForm').addEventListener('submit', async function(e) {
+            const form = e.target;
+            const siteId = document.getElementById('siteId').value;
+            
+            // For live function (test site), use regular form submission to get proper redirect
+            if (siteId === 'test') {
+                // Let the form submit normally - this will follow the 303 redirect
+                return true;
+            }
+            
+            // For local testing, use fetch
             e.preventDefault();
             
-            const form = e.target;
             const formData = new FormData(form);
             const statusDiv = document.getElementById('status');
+            
+            // Convert FormData to URL-encoded string
+            const urlEncodedData = new URLSearchParams();
+            for (const [key, value] of formData.entries()) {
+                urlEncodedData.append(key, value);
+            }
             
             // Show loading state
             statusDiv.style.display = 'block';
@@ -170,7 +208,10 @@
             try {
                 const response = await fetch(form.action, {
                     method: 'POST',
-                    body: formData
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: urlEncodedData.toString()
                 });
                 
                 if (response.ok) {
@@ -187,6 +228,31 @@
                 statusDiv.textContent = `Network error: ${error.message}`;
             }
         });
+
+        // Check for success hash on page load
+        function checkForSuccess() {
+            if (window.location.hash === '#form-complete') {
+                showSuccess();
+            }
+        }
+
+        function showSuccess() {
+            document.getElementById('form-section').classList.add('hidden');
+            document.getElementById('success-section').classList.remove('hidden');
+        }
+
+        function showForm() {
+            document.getElementById('success-section').classList.add('hidden');
+            document.getElementById('form-section').classList.remove('hidden');
+            document.getElementById('contactForm').reset();
+            window.location.hash = '';
+        }
+
+        // Check on page load
+        checkForSuccess();
+
+        // Check when hash changes
+        window.addEventListener('hashchange', checkForSuccess);
     </script>
 </body>
 </html>
