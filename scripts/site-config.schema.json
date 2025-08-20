@@ -1,0 +1,56 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RLS Contact Form Site Configuration",
+  "description": "Configuration schema for adding new sites to the RLS Contact Form service",
+  "type": "object",
+  "required": [
+    "siteId",
+    "toEmail", 
+    "fromEmail",
+    "redirectUrl",
+    "allowOrigins"
+  ],
+  "properties": {
+    "siteId": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_-]+$",
+      "description": "Unique identifier for the site (alphanumeric, hyphens, and underscores only)",
+      "examples": ["my-website", "client_site", "demo123"]
+    },
+    "toEmail": {
+      "type": "string",
+      "format": "email",
+      "description": "Email address where contact form submissions will be sent",
+      "examples": ["contact@example.com", "info@mysite.org"]
+    },
+    "fromEmail": {
+      "type": "string", 
+      "format": "email",
+      "description": "Email address used as the sender for contact form notifications",
+      "examples": ["noreply@example.com", "contact-form@mysite.org"]
+    },
+    "redirectUrl": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https?://",
+      "description": "URL to redirect users after successful form submission",
+      "examples": ["https://example.com/thank-you", "https://mysite.org/success"]
+    },
+    "allowOrigins": {
+      "type": "string",
+      "pattern": "^https?://[^,]+(,https?://[^,]+)*$",
+      "description": "Comma-separated list of allowed origins for CORS (no spaces after commas)",
+      "examples": [
+        "https://example.com,https://www.example.com",
+        "https://mysite.org"
+      ]
+    },
+    "secret": {
+      "type": "string",
+      "minLength": 16,
+      "description": "Optional secret key for HMAC signature validation (minimum 16 characters for security)",
+      "examples": ["my-super-secret-key-12345"]
+    }
+  },
+  "additionalProperties": false
+}

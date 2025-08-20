@@ -1,0 +1,8 @@
+{
+  "siteId": "example-website",
+  "toEmail": "contact@example.com",
+  "fromEmail": "noreply@example.com", 
+  "redirectUrl": "https://example.com/thank-you",
+  "allowOrigins": "https://example.com,https://www.example.com",
+  "secret": "optional-hmac-secret-key-for-security"
+}

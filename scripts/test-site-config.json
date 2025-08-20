@@ -1,0 +1,8 @@
+{
+  "siteId": "test-deployment",
+  "toEmail": "test@example.com",
+  "fromEmail": "noreply@example.com",
+  "redirectUrl": "https://example.com/test-success",
+  "allowOrigins": "https://example.com,https://www.example.com",
+  "secret": "test-secret-key-for-validation-purposes"
+}
