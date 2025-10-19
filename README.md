@@ -1,6 +1,6 @@
 # Multi-Tenant Contact Form Service
 
-A **production-ready** .NET Azure Functions service that provides secure, multi-tenant contact form handling for any website. Submit forms via simple HTML POST or JSON fetch, with automatic email delivery via SendGrid and seamless 303-redirects back to your site.
+A **production-ready** .NET Azure Functions service that provides secure, multi-tenant contact form handling for any website. Submit forms via simple HTML POST or JSON fetch, with automatic email delivery via SendGrid and a JSON success response (no redirect status codes) you can use to navigate on the client.
 
 ## Architecture Overview
 
@@ -29,7 +29,7 @@ A **production-ready** .NET Azure Functions service that provides secure, multi-
 - ✅ **Dynamic metadata**: Collect unlimited custom fields (phone, company, etc.)
 - ✅ **Security**: Honeypot, CORS, HMAC signatures, rate limiting
 - ✅ **Email delivery**: SendGrid integration with HTML/text formats
-- ✅ **Seamless UX**: 303-redirects keep users on their own domain
+- ✅ **Seamless UX**: JSON success `{ ok:true, redirect:"/form-sent" }` lets the frontend decide navigation (no 3xx redirects)
 - ✅ **Production-ready**: Comprehensive error handling and logging
 
 ## Quick Start

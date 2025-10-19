@@ -1,0 +1,7 @@
+{
+  "siteId": "guitar-repair-of-tampa-bay",
+  "toEmail": "cody@redlettersolutions.io",
+  "fromEmail": "admin@redlettersolutions.io",
+  "redirectUrl": "http://localhost:5173/form-sent",
+  "allowOrigins": "http://localhost:5173,http://www.guitarrepairoftampabay.com"
+}

@@ -5,6 +5,7 @@
     "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
     "SENDGRID_API_KEY": "SG.xxxxx",
     "DEFAULT_FROM_EMAIL": "no-reply@youragency.com",
+    "PostgresConnectionString": "Host=caboose.proxy.rlwy.net;Port=46817;Username=postgres;Password=TEldbxeBObbohehNCkfjJpadtmyUNPRC;Database=railway;SSL Mode=Require;Trust Server Certificate=true;",
     "sites:world1:to_email": "owner@world1inc.com",
     "sites:world1:from_email": "contact@world1inc.com",
     "sites:world1:redirect_url": "https://world1inc.com/thanks",

@@ -11,6 +11,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using SendGrid;
 using SendGrid.Helpers.Mail;
+using RLS_Contact_Forms.Data;
+using RLS_Contact_Forms.Models;
+using RLS_Contact_Forms.Services;
 
 namespace RLS_Contact_Forms;
 
@@ -20,17 +23,21 @@ public class Contact
     private readonly IConfiguration _configuration;
     private readonly TableServiceClient _tableServiceClient;
     private readonly ISendGridClient _sendGridClient;
+    private readonly SubmissionRepository _submissionRepository;
 
-    public Contact(ILogger<Contact> logger, IConfiguration configuration)
+    public Contact(ILogger<Contact> logger, IConfiguration configuration, ApplicationDbContext dbContext)
     {
         _logger = logger;
         _configuration = configuration;
-        
+
         var storageConnectionString = _configuration["AzureWebJobsStorage"];
         _tableServiceClient = new TableServiceClient(storageConnectionString);
-        
+
         var sendGridApiKey = _configuration["SENDGRID_API_KEY"];
         _sendGridClient = new SendGridClient(sendGridApiKey);
+
+        // Initialize submission repository for storing contact form data in PostgreSQL
+        _submissionRepository = new SubmissionRepository(dbContext, _logger);
     }
 
     [Function("Contact")]
@@ -38,11 +45,30 @@ public class Contact
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", "options", Route = "v1/contact/{siteId}")] HttpRequestData req,
         string siteId)
     {
+        /**
+         * Contract Summary
+         * ---------------------------------------------
+         * Methods: POST, OPTIONS
+         * CORS: Allowed origins (whitelist below) echoed via Access-Control-Allow-Origin, fallback to first entry if no match.
+         * Preflight (OPTIONS): 204 No Content + CORS headers.
+         * Required POST fields: name, email, message.
+         * Optional fields: phone, guitarModel, budgetRange, any additional metadata, _ts/_sig (if HMAC enabled), _hp honeypot.
+         * Honeypot (_hp non-empty): 204 No Content (silent ignore) + CORS headers.
+         * Validation failure (missing required): 400 { ok:false, error:"validation", fields:{ name:boolean, email:boolean, message:boolean } }
+         * Success: 200 { ok:true, redirect:"/form-sent" } (frontend may navigate to value in redirect field – no HTTP redirect status codes used).
+         * Server error: 500 { ok:false, error:"server" }
+         * Other logical failures (rate limit, signature, origin, unknown site) return 400 { ok:false, error:"validation" }.
+         * Frontend usage example:
+         *   fetch(url,{ method:"POST", body: formData })
+         *     .then(r => r.json())
+         *     .then(d => { if(d.ok && d.redirect) window.location = d.redirect; });
+         */
+
         // Handle preflight OPTIONS requests
         if (req.Method.Equals("OPTIONS", StringComparison.OrdinalIgnoreCase))
         {
-            var optionsResponse = req.CreateResponse(HttpStatusCode.OK);
-            AddCorsHeaders(optionsResponse);
+            var optionsResponse = req.CreateResponse(HttpStatusCode.NoContent);
+            AddCorsHeaders(optionsResponse, req);
             return optionsResponse;
         }
 
@@ -55,13 +81,13 @@ public class Contact
             if (siteConfig == null)
             {
                 _logger.LogWarning("Unknown site: {SiteId}", siteId);
-                return CreateBadRequestResponse(req, "Unknown site");
+                return CreateJsonResponse(req, HttpStatusCode.BadRequest, new { ok = false, error = "validation" });
             }
 
             if (!await CheckRateLimit(siteId, clientIp))
             {
                 _logger.LogWarning("Rate limit exceeded for site {SiteId} from IP {ClientIp}", siteId, clientIp);
-                return CreateRateLimitResponse(req);
+                return CreateJsonResponse(req, (HttpStatusCode)429, new { ok = false, error = "validation", rateLimit = true });
             }
 
             var formData = await ParseRequestData(req);
@@ -69,38 +95,44 @@ public class Contact
             if (IsHoneypotTriggered(formData))
             {
                 _logger.LogInformation("Honeypot triggered for site {SiteId} from IP {ClientIp}", siteId, clientIp);
-                return CreateRedirectResponse(req, siteConfig.RedirectUrl);
+                var hpResponse = req.CreateResponse(HttpStatusCode.NoContent);
+                AddCorsHeaders(hpResponse, req);
+                return hpResponse; // Silent success
             }
 
             if (!ValidateOrigin(req, siteConfig))
             {
                 _logger.LogWarning("Origin validation failed for site {SiteId} from IP {ClientIp}", siteId, clientIp);
-                return CreateBadRequestResponse(req, "Origin not allowed");
+                return CreateJsonResponse(req, HttpStatusCode.BadRequest, new { ok = false, error = "validation", origin = false });
             }
 
-            if (!ValidateRequiredFields(formData, out var validationError))
+            if (!ValidateRequiredFields(formData, out var validationError, out var fieldErrors))
             {
                 _logger.LogWarning("Validation failed for site {SiteId}: {Error}", siteId, validationError);
-                return CreateBadRequestResponse(req, validationError);
+                return CreateJsonResponse(req, HttpStatusCode.BadRequest, new { ok = false, error = "validation", fields = fieldErrors });
             }
 
             if (!ValidateHmacSignature(formData, siteConfig, siteId))
             {
                 _logger.LogWarning("HMAC validation failed for site {SiteId} from IP {ClientIp}", siteId, clientIp);
-                return CreateBadRequestResponse(req, "Invalid signature");
+                return CreateJsonResponse(req, HttpStatusCode.BadRequest, new { ok = false, error = "validation", signature = false });
             }
 
             await SendEmail(formData, siteConfig, siteId);
-            
-            _logger.LogInformation("Contact form submitted successfully for site {SiteId} from IP {ClientIp} in {ElapsedMs}ms", 
+
+            // Store submission in database (don't block user flow on database errors)
+            await SaveSubmissionToDatabase(formData, siteId, clientIp);
+
+            _logger.LogInformation("Contact form submitted successfully for site {SiteId} from IP {ClientIp} in {ElapsedMs}ms",
                 siteId, clientIp, stopwatch.ElapsedMilliseconds);
-            
-            return CreateRedirectResponse(req, siteConfig.RedirectUrl);
+
+            var redirectValue = string.IsNullOrWhiteSpace(siteConfig.RedirectUrl) ? "/form-sent" : siteConfig.RedirectUrl;
+            return CreateJsonResponse(req, HttpStatusCode.OK, new { ok = true, redirect = redirectValue });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing contact form for site {SiteId} from IP {ClientIp}", siteId, clientIp);
-            return CreateBadRequestResponse(req, "An error occurred processing your request");
+            return CreateJsonResponse(req, HttpStatusCode.InternalServerError, new { ok = false, error = "server" });
         }
     }
 
@@ -176,22 +208,20 @@ public class Contact
             string.Equals(allowed.Trim(), origin, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static bool ValidateRequiredFields(Dictionary<string, string> formData, out string validationError)
+    private static bool ValidateRequiredFields(Dictionary<string, string> formData, out string validationError, out object fieldErrors)
     {
         validationError = "";
+        var missingName = !formData.TryGetValue("name", out var name) || string.IsNullOrWhiteSpace(name);
+        var missingEmail = !formData.TryGetValue("email", out var email) || string.IsNullOrWhiteSpace(email);
+        var missingMessage = !formData.TryGetValue("message", out var message) || string.IsNullOrWhiteSpace(message);
 
-        if (!formData.TryGetValue("email", out var email) || string.IsNullOrWhiteSpace(email))
+        fieldErrors = new { name = !missingName, email = !missingEmail, message = !missingMessage };
+
+        if (missingName || missingEmail || missingMessage)
         {
-            validationError = "Email is required";
+            validationError = "Missing required fields";
             return false;
         }
-
-        if (!formData.TryGetValue("message", out var message) || string.IsNullOrWhiteSpace(message))
-        {
-            validationError = "Message is required";
-            return false;
-        }
-
         return true;
     }
 
@@ -304,7 +334,7 @@ public class Contact
             var message = formData.GetValueOrDefault("message", "");
 
             var subject = $"New contact ({siteId}) from {name}";
-            
+
             // Build email content with core fields and metadata
             var textContent = BuildTextEmailContent(formData);
             var htmlContent = BuildHtmlEmailContent(formData);
@@ -314,7 +344,7 @@ public class Contact
             var msg = MailHelper.CreateSingleEmail(from, to, subject, textContent, htmlContent);
 
             var response = await _sendGridClient.SendEmailAsync(msg);
-            
+
             if (IsSuccessStatusCode(response.StatusCode))
             {
                 _logger.LogInformation("Email sent successfully for site {SiteId} to {ToEmail}", siteId, siteConfig.ToEmail);
@@ -327,6 +357,25 @@ public class Contact
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to send email for site {SiteId}", siteId);
+        }
+    }
+
+    private async Task SaveSubmissionToDatabase(Dictionary<string, string> formData, string siteId, string clientIp)
+    {
+        try
+        {
+            var submission = ContactSubmission.Create(siteId, formData, clientIp);
+            var saved = await _submissionRepository.SaveSubmissionAsync(submission);
+
+            if (!saved)
+            {
+                _logger.LogWarning("Failed to save submission to database for site {SiteId}", siteId);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Log but don't throw - database errors shouldn't block the user flow
+            _logger.LogWarning(ex, "Error saving submission to database for site {SiteId}", siteId);
         }
     }
 
@@ -433,35 +482,39 @@ public class Contact
         return "unknown";
     }
 
-    private static HttpResponseData CreateRedirectResponse(HttpRequestData req, string location)
+    private static HttpResponseData CreateJsonResponse(HttpRequestData req, HttpStatusCode statusCode, object payload)
     {
-        var response = req.CreateResponse(HttpStatusCode.SeeOther);
-        response.Headers.Add("Location", location);
-        AddCorsHeaders(response);
+        var response = req.CreateResponse(statusCode);
+        var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+        response.Headers.Add("Content-Type", "application/json; charset=utf-8");
+        response.WriteString(json);
+        AddCorsHeaders(response, req);
         return response;
     }
 
-    private static HttpResponseData CreateBadRequestResponse(HttpRequestData req, string message)
+    private static readonly string[] GlobalAllowedOrigins = new []
     {
-        var response = req.CreateResponse(HttpStatusCode.BadRequest);
-        response.WriteString(message);
-        AddCorsHeaders(response);
-        return response;
-    }
+        "http://localhost:5173",
+        "https://guitarrepairoftampa.com"
+    };
 
-    private static HttpResponseData CreateRateLimitResponse(HttpRequestData req)
+    private static void AddCorsHeaders(HttpResponseData response, HttpRequestData? req = null)
     {
-        var response = req.CreateResponse(HttpStatusCode.TooManyRequests);
-        response.WriteString("Rate limit exceeded. Please try again later.");
-        AddCorsHeaders(response);
-        return response;
-    }
+        string chosenOrigin = GlobalAllowedOrigins[0];
+        if (req != null && req.Headers.TryGetValues("Origin", out var origins))
+        {
+            var origin = origins.FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(origin) && GlobalAllowedOrigins.Any(o => string.Equals(o, origin, StringComparison.OrdinalIgnoreCase)))
+            {
+                chosenOrigin = origin;
+            }
+        }
 
-    private static void AddCorsHeaders(HttpResponseData response)
-    {
-        response.Headers.Add("Access-Control-Allow-Origin", "*");
-        response.Headers.Add("Access-Control-Allow-Methods", "POST, OPTIONS");
+        response.Headers.Add("Access-Control-Allow-Origin", chosenOrigin);
+        response.Headers.Add("Vary", "Origin");
+        response.Headers.Add("Access-Control-Allow-Methods", "POST,OPTIONS");
         response.Headers.Add("Access-Control-Allow-Headers", "Content-Type");
+        response.Headers.Add("Access-Control-Max-Age", "86400");
     }
 }
 
