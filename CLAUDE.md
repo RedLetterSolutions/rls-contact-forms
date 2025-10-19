@@ -217,3 +217,254 @@ Key log messages to watch for:
 - `Failed to apply database migrations` - Migration error
 
 Rate limiting issues often indicate Azure Storage connectivity problems. Email delivery failures and database storage failures are logged as warnings but don't block user flow, ensuring maximum reliability for end users. Database migration failures will prevent the application from starting properly.
+
+## REST API Endpoints
+
+The ContactFormsAdmin application provides a comprehensive REST API for managing sites, webhooks, and submissions. All API endpoints are located in the `ContactFormsAdmin/Controllers/Api/` directory.
+
+### Sites API (`/api/sites`)
+
+**Location**: `ContactFormsAdmin/Controllers/Api/SitesApiController.cs`
+
+Manage site configurations for the multi-tenant contact form service.
+
+- `GET /api/sites` - List all sites
+  - Query params: `includeInactive` (bool, default: false)
+  - Returns: Array of site objects with configuration details
+
+- `GET /api/sites/{id}` - Get site by database ID
+  - Returns: Single site object
+
+- `GET /api/sites/by-slug/{siteId}` - Get site by SiteId (slug)
+  - Returns: Single site object
+
+- `POST /api/sites` - Create new site
+  - Body: `{ siteId, name, description?, toEmail, fromEmail, redirectUrl?, allowedOrigins?, secret?, isActive? }`
+  - Returns: Created site object (201)
+  - Validation: SiteId must be unique
+
+- `PUT /api/sites/{id}` - Update existing site
+  - Body: `{ name?, description?, toEmail?, fromEmail?, redirectUrl?, allowedOrigins?, secret?, isActive? }`
+  - Returns: Updated site object
+
+- `DELETE /api/sites/{id}` - Delete site
+  - Returns: Success message
+
+- `PATCH /api/sites/{id}/toggle-active` - Toggle site active status
+  - Returns: New active status
+
+**Response Format**:
+```json
+{
+  "success": true,
+  "site": {
+    "id": 1,
+    "siteId": "example-site",
+    "name": "Example Site",
+    "description": "My example website",
+    "toEmail": "admin@example.com",
+    "fromEmail": "noreply@example.com",
+    "redirectUrl": "/thank-you",
+    "allowedOrigins": ["https://example.com"],
+    "hasSecret": true,
+    "isActive": true,
+    "createdAt": "2025-01-15T10:30:00Z",
+    "updatedAt": "2025-01-15T10:30:00Z"
+  }
+}
+```
+
+### Webhooks API (`/api/webhooks`)
+
+**Location**: `ContactFormsAdmin/Controllers/Api/WebhooksApiController.cs`
+
+Manage webhooks that trigger on contact form submissions.
+
+- `GET /api/webhooks` - List all webhooks
+  - Query params: `siteId` (string, optional), `includeInactive` (bool, default: false)
+  - Returns: Array of webhook objects
+
+- `GET /api/webhooks/{id}` - Get webhook by ID
+  - Returns: Single webhook object
+
+- `POST /api/webhooks` - Create new webhook
+  - Body: `{ siteId, url, description?, events?, secret?, isActive? }`
+  - Returns: Created webhook object (201)
+  - Validation: URL must be valid, site must exist
+
+- `PUT /api/webhooks/{id}` - Update existing webhook
+  - Body: `{ url?, description?, events?, secret?, isActive? }`
+  - Returns: Updated webhook object
+
+- `DELETE /api/webhooks/{id}` - Delete webhook
+  - Returns: Success message
+
+- `PATCH /api/webhooks/{id}/toggle-active` - Toggle webhook active status
+  - Returns: New active status
+
+- `POST /api/webhooks/{id}/test` - Test webhook with sample payload
+  - Returns: Test result with success/error details
+
+**Response Format**:
+```json
+{
+  "success": true,
+  "webhook": {
+    "id": 1,
+    "siteId": "example-site",
+    "url": "https://example.com/webhook",
+    "description": "Production webhook",
+    "events": "contact.submitted",
+    "hasSecret": true,
+    "isActive": true,
+    "createdAt": "2025-01-15T10:30:00Z",
+    "lastTriggeredAt": "2025-01-15T12:45:00Z",
+    "lastSuccess": true,
+    "lastError": null
+  }
+}
+```
+
+### Submissions API (`/api/submissions`)
+
+**Location**: `ContactFormsAdmin/Controllers/ApiController.cs`
+
+Query and manage contact form submissions.
+
+- `GET /api/submissions` - List all submissions (across all sites)
+  - Query params: `siteId` (string, optional), `limit` (int, max 1000), `offset` (int)
+  - Returns: Paginated array of submissions
+
+- `GET /api/submissions/{siteId}` - List submissions for a specific site
+  - Query params: `limit` (int, max 1000), `offset` (int)
+  - Returns: Paginated array of submissions
+
+- `GET /api/submissions/{siteId}/{id}` - Get specific submission
+  - Returns: Single submission object
+
+- `GET /api/submissions/{siteId}/by-date` - Query submissions by date range
+  - Query params: `startDate` (DateTime?), `endDate` (DateTime?), `limit` (int)
+  - Returns: Array of submissions within date range
+
+- `DELETE /api/submissions/{id}` - Delete submission by ID
+  - Returns: Success message
+
+- `DELETE /api/submissions/{siteId}/{id}` - Delete submission with site verification
+  - Returns: Success message
+
+- `GET /api/stats/{siteId}` - Get submission statistics
+  - Returns: Stats object with total, last 24h, 7d, 30d counts
+
+**Response Format**:
+```json
+{
+  "success": true,
+  "totalCount": 150,
+  "limit": 100,
+  "offset": 0,
+  "count": 100,
+  "siteId": "example-site",
+  "submissions": [
+    {
+      "id": 1,
+      "siteId": "example-site",
+      "name": "John Doe",
+      "email": "john@example.com",
+      "message": "Hello, I have a question...",
+      "clientIp": "192.168.1.1",
+      "submittedAt": "2025-01-15T10:30:00Z",
+      "metadata": {
+        "phone": "555-1234",
+        "company": "Acme Corp"
+      },
+      "createdAt": "2025-01-15T10:30:00Z"
+    }
+  ]
+}
+```
+
+### API Authentication
+
+Currently, the API endpoints do not enforce authentication. For production use, consider:
+
+1. Adding API key authentication via `ApiKeyMiddleware` (already implemented in ContactFormsAdmin)
+2. Using JWT tokens for user-specific access
+3. Implementing role-based access control (RBAC)
+4. Adding rate limiting to prevent abuse
+
+**API Key Setup** (if using ApiKeyMiddleware):
+- Create API keys via the admin dashboard
+- Include `X-API-Key` header in all requests
+- Keys are hashed and stored securely in the database
+
+### Error Response Format
+
+All API endpoints return errors in a consistent format:
+
+```json
+{
+  "success": false,
+  "error": "Error message here",
+  "details": "Additional error details (optional)"
+}
+```
+
+Common HTTP status codes:
+- `200 OK` - Success
+- `201 Created` - Resource created successfully
+- `400 Bad Request` - Invalid request parameters
+- `404 Not Found` - Resource not found
+- `409 Conflict` - Resource already exists (e.g., duplicate SiteId)
+- `500 Internal Server Error` - Server error
+
+### Testing API Endpoints
+
+**Using cURL**:
+```bash
+# List all sites
+curl http://localhost:5282/api/sites
+
+# Create a new site
+curl -X POST http://localhost:5282/api/sites \
+  -H "Content-Type: application/json" \
+  -d '{
+    "siteId": "test-site",
+    "name": "Test Site",
+    "toEmail": "admin@test.com",
+    "fromEmail": "noreply@test.com",
+    "redirectUrl": "/thanks",
+    "allowedOrigins": ["https://test.com"]
+  }'
+
+# Create a webhook
+curl -X POST http://localhost:5282/api/webhooks \
+  -H "Content-Type: application/json" \
+  -d '{
+    "siteId": "test-site",
+    "url": "https://webhook.site/your-unique-url",
+    "description": "Test webhook"
+  }'
+
+# List submissions for a site
+curl http://localhost:5282/api/submissions/test-site?limit=10
+
+# Delete a submission
+curl -X DELETE http://localhost:5282/api/submissions/123
+```
+
+**Using JavaScript/Fetch**:
+```javascript
+// Create a new site
+const response = await fetch('http://localhost:5282/api/sites', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    siteId: 'my-site',
+    name: 'My Site',
+    toEmail: 'admin@mysite.com',
+    fromEmail: 'noreply@mysite.com'
+  })
+});
+const data = await response.json();
+console.log(data.site);
+```

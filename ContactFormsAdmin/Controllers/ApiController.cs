@@ -144,4 +144,177 @@ public class ApiController : ControllerBase
 
         return Ok(new { sites = siteStats });
     }
+
+    /// <summary>
+    /// Delete a submission by ID
+    /// </summary>
+    [HttpDelete("submissions/{id}")]
+    public async Task<IActionResult> DeleteSubmission(long id)
+    {
+        try
+        {
+            var submission = await _context.ContactSubmissions.FindAsync(id);
+
+            if (submission == null)
+            {
+                return NotFound(new { success = false, error = "Submission not found" });
+            }
+
+            _context.ContactSubmissions.Remove(submission);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { success = true, message = "Submission deleted successfully" });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { success = false, error = "Failed to delete submission", details = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Delete a submission by ID with site verification
+    /// </summary>
+    [HttpDelete("submissions/{siteId}/{id}")]
+    public async Task<IActionResult> DeleteSubmissionBySite(string siteId, long id)
+    {
+        try
+        {
+            var submission = await _context.ContactSubmissions
+                .Where(s => s.Id == id && s.SiteId == siteId)
+                .FirstOrDefaultAsync();
+
+            if (submission == null)
+            {
+                return NotFound(new { success = false, error = "Submission not found" });
+            }
+
+            _context.ContactSubmissions.Remove(submission);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { success = true, message = "Submission deleted successfully" });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { success = false, error = "Failed to delete submission", details = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Get all submissions across all sites (with pagination)
+    /// </summary>
+    [HttpGet("submissions")]
+    public async Task<IActionResult> GetAllSubmissions(
+        [FromQuery] int limit = 100,
+        [FromQuery] int offset = 0,
+        [FromQuery] string? siteId = null)
+    {
+        try
+        {
+            if (limit > 1000) limit = 1000; // Max limit
+
+            var query = _context.ContactSubmissions.AsQueryable();
+
+            // Filter by siteId if provided
+            if (!string.IsNullOrWhiteSpace(siteId))
+            {
+                query = query.Where(s => s.SiteId == siteId);
+            }
+
+            query = query.OrderByDescending(s => s.SubmittedAt);
+
+            var totalCount = await query.CountAsync();
+            var submissions = await query
+                .Skip(offset)
+                .Take(limit)
+                .Select(s => new
+                {
+                    s.Id,
+                    s.SiteId,
+                    s.Name,
+                    s.Email,
+                    s.Message,
+                    s.ClientIp,
+                    s.SubmittedAt,
+                    Metadata = s.MetadataJson != null ? s.GetMetadata() : new Dictionary<string, string>(),
+                    s.CreatedAt
+                })
+                .ToListAsync();
+
+            return Ok(new
+            {
+                success = true,
+                totalCount,
+                limit,
+                offset,
+                count = submissions.Count,
+                siteId,
+                submissions
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { success = false, error = "Failed to retrieve submissions", details = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Get submissions by date range
+    /// </summary>
+    [HttpGet("submissions/{siteId}/by-date")]
+    public async Task<IActionResult> GetSubmissionsByDateRange(
+        string siteId,
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null,
+        [FromQuery] int limit = 100)
+    {
+        try
+        {
+            if (limit > 1000) limit = 1000;
+
+            var query = _context.ContactSubmissions.Where(s => s.SiteId == siteId);
+
+            if (startDate.HasValue)
+            {
+                var start = DateTime.SpecifyKind(startDate.Value, DateTimeKind.Utc);
+                query = query.Where(s => s.SubmittedAt >= start);
+            }
+
+            if (endDate.HasValue)
+            {
+                var end = DateTime.SpecifyKind(endDate.Value, DateTimeKind.Utc);
+                query = query.Where(s => s.SubmittedAt <= end);
+            }
+
+            var submissions = await query
+                .OrderByDescending(s => s.SubmittedAt)
+                .Take(limit)
+                .Select(s => new
+                {
+                    s.Id,
+                    s.SiteId,
+                    s.Name,
+                    s.Email,
+                    s.Message,
+                    s.ClientIp,
+                    s.SubmittedAt,
+                    Metadata = s.MetadataJson != null ? s.GetMetadata() : new Dictionary<string, string>(),
+                    s.CreatedAt
+                })
+                .ToListAsync();
+
+            return Ok(new
+            {
+                success = true,
+                siteId,
+                startDate,
+                endDate,
+                count = submissions.Count,
+                submissions
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { success = false, error = "Failed to retrieve submissions", details = ex.Message });
+        }
+    }
 }
