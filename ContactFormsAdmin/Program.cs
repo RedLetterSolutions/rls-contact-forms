@@ -41,6 +41,9 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     db.Database.Migrate();
+    
+    // Seed initial data
+    await SiteSeeder.SeedSitesAsync(db);
 }
 
 // Configure the HTTP request pipeline

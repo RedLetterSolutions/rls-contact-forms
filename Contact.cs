@@ -7,6 +7,7 @@ using Azure;
 using Azure.Data.Tables;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using SendGrid;
@@ -24,11 +25,13 @@ public class Contact
     private readonly TableServiceClient _tableServiceClient;
     private readonly ISendGridClient _sendGridClient;
     private readonly SubmissionRepository _submissionRepository;
+    private readonly ApplicationDbContext _dbContext;
 
     public Contact(ILogger<Contact> logger, IConfiguration configuration, ApplicationDbContext dbContext)
     {
         _logger = logger;
         _configuration = configuration;
+        _dbContext = dbContext;
 
         var storageConnectionString = _configuration["AzureWebJobsStorage"];
         _tableServiceClient = new TableServiceClient(storageConnectionString);
@@ -77,7 +80,7 @@ public class Contact
         
         try
         {
-            var siteConfig = LoadSiteConfiguration(siteId);
+            var siteConfig = await LoadSiteConfigurationAsync(siteId);
             if (siteConfig == null)
             {
                 _logger.LogWarning("Unknown site: {SiteId}", siteId);
@@ -136,26 +139,34 @@ public class Contact
         }
     }
 
-    private SiteConfiguration? LoadSiteConfiguration(string siteId)
+    private async Task<SiteConfiguration?> LoadSiteConfigurationAsync(string siteId)
     {
-        var prefix = $"sites:{siteId}:";
-        
-        var toEmail = _configuration[prefix + "to_email"];
-        var redirectUrl = _configuration[prefix + "redirect_url"];
-        
-        if (string.IsNullOrEmpty(toEmail) || string.IsNullOrEmpty(redirectUrl))
+        try
         {
+            var site = await _dbContext.Sites
+                .Where(s => s.SiteId == siteId && s.IsActive)
+                .FirstOrDefaultAsync();
+
+            if (site == null)
+            {
+                _logger.LogWarning("Site not found or inactive: {SiteId}", siteId);
+                return null;
+            }
+
+            return new SiteConfiguration
+            {
+                ToEmail = site.ToEmail,
+                FromEmail = site.FromEmail,
+                RedirectUrl = site.RedirectUrl ?? "/form-sent",
+                AllowOrigins = site.AllowOriginsArray,
+                Secret = site.Secret
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading site configuration for {SiteId}", siteId);
             return null;
         }
-
-        return new SiteConfiguration
-        {
-            ToEmail = toEmail,
-            FromEmail = _configuration[prefix + "from_email"] ?? _configuration["DEFAULT_FROM_EMAIL"] ?? "",
-            RedirectUrl = redirectUrl,
-            AllowOrigins = _configuration[prefix + "allow_origins"]?.Split(',', StringSplitOptions.RemoveEmptyEntries) ?? Array.Empty<string>(),
-            Secret = _configuration[prefix + "secret"]
-        };
     }
 
     private async Task<Dictionary<string, string>> ParseRequestData(HttpRequestData req)

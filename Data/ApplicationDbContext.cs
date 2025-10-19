@@ -15,6 +15,7 @@ public class ApplicationDbContext : DbContext
     }
 
     public DbSet<ContactSubmission> ContactSubmissions { get; set; } = null!;
+    public DbSet<Site> Sites { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -38,5 +39,51 @@ public class ApplicationDbContext : DbContext
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP");
         });
+
+        modelBuilder.Entity<Site>(entity =>
+        {
+            // Configure unique index on SiteId
+            entity.HasIndex(s => s.SiteId)
+                .IsUnique()
+                .HasDatabaseName("IX_sites_site_id");
+
+            // Configure name index
+            entity.HasIndex(s => s.Name)
+                .HasDatabaseName("IX_sites_name");
+        });
+    }
+
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        FixDateTimeKinds();
+        return await base.SaveChangesAsync(cancellationToken);
+    }
+
+    public override int SaveChanges()
+    {
+        FixDateTimeKinds();
+        return base.SaveChanges();
+    }
+
+    private void FixDateTimeKinds()
+    {
+        var entries = ChangeTracker.Entries()
+            .Where(e => e.Entity.GetType().GetProperties()
+                .Any(p => p.PropertyType == typeof(DateTime) || p.PropertyType == typeof(DateTime?)));
+
+        foreach (var entry in entries)
+        {
+            var properties = entry.Entity.GetType().GetProperties()
+                .Where(p => p.PropertyType == typeof(DateTime) || p.PropertyType == typeof(DateTime?));
+
+            foreach (var property in properties)
+            {
+                var value = property.GetValue(entry.Entity);
+                if (value is DateTime dt && dt.Kind == DateTimeKind.Unspecified)
+                {
+                    property.SetValue(entry.Entity, DateTime.SpecifyKind(dt, DateTimeKind.Utc));
+                }
+            }
+        }
     }
 }

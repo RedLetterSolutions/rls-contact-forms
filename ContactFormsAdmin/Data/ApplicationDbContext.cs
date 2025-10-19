@@ -13,6 +13,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<ContactSubmission> ContactSubmissions { get; set; } = null!;
     public DbSet<Webhook> Webhooks { get; set; } = null!;
     public DbSet<ApiKey> ApiKeys { get; set; } = null!;
+    public DbSet<Site> Sites { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -34,6 +35,12 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<ApiKey>(entity =>
         {
             entity.HasIndex(e => e.KeyHash).IsUnique();
+            entity.HasIndex(e => e.IsActive);
+        });
+
+        modelBuilder.Entity<Site>(entity =>
+        {
+            entity.HasIndex(e => e.SiteId).IsUnique();
             entity.HasIndex(e => e.IsActive);
         });
     }

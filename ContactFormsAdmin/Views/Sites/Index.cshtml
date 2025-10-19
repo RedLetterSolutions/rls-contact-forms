@@ -1,0 +1,138 @@
+@model IEnumerable<ContactFormsAdmin.Models.Site>
+@{
+    ViewData["Title"] = "Site Management";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Site Management</h2>
+    <a href="@Url.Action("Create")" class="btn btn-primary">
+        <i class="fas fa-plus"></i> Add New Site
+    </a>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        @TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div class="card">
+    <div class="card-body">
+        @if (!Model.Any())
+        {
+            <div class="text-center py-5">
+                <i class="fas fa-globe fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">No sites configured yet</h5>
+                <p class="text-muted">Create your first site to start managing contact forms.</p>
+                <a href="@Url.Action("Create")" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Create First Site
+                </a>
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Site ID</th>
+                            <th>Name</th>
+                            <th>To Email</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var site in Model)
+                        {
+                            <tr>
+                                <td>
+                                    <code>@site.SiteId</code>
+                                </td>
+                                <td>
+                                    <strong>@site.Name</strong>
+                                    @if (!string.IsNullOrEmpty(site.Description))
+                                    {
+                                        <br><small class="text-muted">@site.Description</small>
+                                    }
+                                </td>
+                                <td>@site.ToEmail</td>
+                                <td>
+                                    @if (site.IsActive)
+                                    {
+                                        <span class="badge bg-success">Active</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger">Inactive</span>
+                                    }
+                                </td>
+                                <td>
+                                    <small>@site.CreatedAt.ToString("MMM dd, yyyy")</small>
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <a href="@Url.Action("Edit", new { id = site.Id })" 
+                                           class="btn btn-outline-primary" title="Edit">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        
+                                        @using (Html.BeginForm("ToggleActive", "Sites", new { id = site.Id }, FormMethod.Post, true, new { style = "display: inline;" }))
+                                        {
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" 
+                                                    class="btn btn-outline-@(site.IsActive ? "warning" : "success")" 
+                                                    title="@(site.IsActive ? "Deactivate" : "Activate")"
+                                                    onclick="return confirm('@(site.IsActive ? "Deactivate" : "Activate") this site?')">
+                                                <i class="fas fa-@(site.IsActive ? "pause" : "play")"></i>
+                                            </button>
+                                        }
+                                        
+                                        @using (Html.BeginForm("Delete", "Sites", new { id = site.Id }, FormMethod.Post, true, new { style = "display: inline;" }))
+                                        {
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" 
+                                                    class="btn btn-outline-danger" 
+                                                    title="Delete"
+                                                    onclick="return confirm('Are you sure you want to delete @site.Name? This action cannot be undone.')">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>
+
+<div class="mt-4">
+    <div class="card">
+        <div class="card-header">
+            <h6 class="mb-0">How to Use</h6>
+        </div>
+        <div class="card-body">
+            <p class="mb-1">
+                <strong>Site ID:</strong> Use this as the <code>{siteId}</code> parameter in your API calls to 
+                <code>/api/v1/contact/{siteId}</code>
+            </p>
+            <p class="mb-0">
+                <strong>API Endpoint:</strong> <code>https://your-function-app.azurewebsites.net/api/v1/contact/{siteId}</code>
+            </p>
+        </div>
+    </div>
+</div>

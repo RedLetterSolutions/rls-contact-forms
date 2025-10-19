@@ -1,0 +1,165 @@
+@model ContactFormsAdmin.Models.Site
+@{
+    ViewData["Title"] = "Create Site";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Create New Site</h2>
+    <a href="@Url.Action("Index")" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> Back to Sites
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-body">
+                @using (Html.BeginForm("Create", "Sites", FormMethod.Post, new { @class = "needs-validation", novalidate = "novalidate" }))
+                {
+                    @Html.AntiForgeryToken()
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                @Html.LabelFor(m => m.SiteId, new { @class = "form-label" })
+                                @Html.TextBoxFor(m => m.SiteId, new { @class = "form-control", placeholder = "e.g., mysite-contact" })
+                                @Html.ValidationMessageFor(m => m.SiteId, "", new { @class = "invalid-feedback" })
+                                <div class="form-text">
+                                    Unique identifier for this site. Used in API URLs. Use lowercase letters, numbers, and hyphens only.
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                @Html.LabelFor(m => m.Name, new { @class = "form-label" })
+                                @Html.TextBoxFor(m => m.Name, new { @class = "form-control", placeholder = "e.g., My Website Contact Form" })
+                                @Html.ValidationMessageFor(m => m.Name, "", new { @class = "invalid-feedback" })
+                                <div class="form-text">
+                                    Display name for this site configuration.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        @Html.LabelFor(m => m.Description, new { @class = "form-label" })
+                        @Html.TextAreaFor(m => m.Description, new { @class = "form-control", rows = 2, placeholder = "Optional description of this site..." })
+                        @Html.ValidationMessageFor(m => m.Description, "", new { @class = "invalid-feedback" })
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                @Html.LabelFor(m => m.ToEmail, new { @class = "form-label" })
+                                @Html.TextBoxFor(m => m.ToEmail, new { @class = "form-control", type = "email", placeholder = "contact@example.com" })
+                                @Html.ValidationMessageFor(m => m.ToEmail, "", new { @class = "invalid-feedback" })
+                                <div class="form-text">
+                                    Email address where contact form submissions will be sent.
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                @Html.LabelFor(m => m.FromEmail, new { @class = "form-label" })
+                                @Html.TextBoxFor(m => m.FromEmail, new { @class = "form-control", type = "email", placeholder = "noreply@example.com" })
+                                @Html.ValidationMessageFor(m => m.FromEmail, "", new { @class = "invalid-feedback" })
+                                <div class="form-text">
+                                    Email address that will appear as the sender.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        @Html.LabelFor(m => m.RedirectUrl, new { @class = "form-label" })
+                        @Html.TextBoxFor(m => m.RedirectUrl, new { @class = "form-control", placeholder = "/thank-you" })
+                        @Html.ValidationMessageFor(m => m.RedirectUrl, "", new { @class = "invalid-feedback" })
+                        <div class="form-text">
+                            URL path to redirect users after successful form submission. Use relative paths like "/thank-you".
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        @Html.LabelFor(m => m.AllowedOrigins, new { @class = "form-label" })
+                        @Html.TextAreaFor(m => m.AllowedOrigins, new { @class = "form-control", rows = 3, placeholder = "https://mysite.com,https://www.mysite.com" })
+                        @Html.ValidationMessageFor(m => m.AllowedOrigins, "", new { @class = "invalid-feedback" })
+                        <div class="form-text">
+                            Comma-separated list of allowed origins for CORS. Include all domains that will submit forms to this endpoint.
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        @Html.LabelFor(m => m.Secret, new { @class = "form-label" })
+                        @Html.TextBoxFor(m => m.Secret, new { @class = "form-control", placeholder = "Optional HMAC secret key..." })
+                        @Html.ValidationMessageFor(m => m.Secret, "", new { @class = "invalid-feedback" })
+                        <div class="form-text">
+                            Optional secret key for HMAC signature validation. Leave blank to disable signature verification.
+                        </div>
+                    </div>
+
+                    <div class="form-check mb-3">
+                        @Html.CheckBoxFor(m => m.IsActive, new { @class = "form-check-input" })
+                        @Html.LabelFor(m => m.IsActive, "Active", new { @class = "form-check-label" })
+                        <div class="form-text">
+                            Only active sites will accept form submissions.
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Create Site
+                        </button>
+                        <a href="@Url.Action("Index")" class="btn btn-secondary">Cancel</a>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">API Usage Example</h6>
+            </div>
+            <div class="card-body">
+                <p class="small">Once created, your site will be accessible at:</p>
+                <pre class="bg-light p-2 rounded small"><code>POST /api/v1/contact/{site-id}</code></pre>
+                
+                <p class="small mt-3">Example HTML form:</p>
+                <pre class="bg-light p-2 rounded small"><code>&lt;form action="https://your-functions.azurewebsites.net/api/v1/contact/{site-id}" method="POST"&gt;
+  &lt;input name="name" required&gt;
+  &lt;input name="email" type="email" required&gt;
+  &lt;textarea name="message" required&gt;&lt;/textarea&gt;
+  &lt;button type="submit"&gt;Send&lt;/button&gt;
+&lt;/form&gt;</code></pre>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-generate site ID from name
+    const nameInput = document.querySelector('#Name');
+    const siteIdInput = document.querySelector('#SiteId');
+    
+    if (nameInput && siteIdInput && !siteIdInput.value) {
+        nameInput.addEventListener('input', function() {
+            const name = this.value;
+            const siteId = name.toLowerCase()
+                .replace(/[^a-z0-9\s-]/g, '')
+                .replace(/\s+/g, '-')
+                .replace(/-+/g, '-')
+                .replace(/^-|-$/g, '');
+            
+            if (!siteIdInput.dataset.userModified) {
+                siteIdInput.value = siteId;
+            }
+        });
+        
+        siteIdInput.addEventListener('input', function() {
+            this.dataset.userModified = 'true';
+        });
+    }
+});
+</script>
