@@ -126,6 +126,16 @@ public class Contact
             // Store submission in database (don't block user flow on database errors)
             await SaveSubmissionToDatabase(formData, siteId, clientIp);
 
+            // Notify admin app to trigger configured webhooks (fire-and-forget)
+            try
+            {
+                _ = Task.Run(() => NotifyAdminAppAsync(siteId, formData));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to start admin webhook notification task for site {SiteId}", siteId);
+            }
+
             _logger.LogInformation("Contact form submitted successfully for site {SiteId} from IP {ClientIp} in {ElapsedMs}ms",
                 siteId, clientIp, stopwatch.ElapsedMilliseconds);
 
@@ -501,6 +511,40 @@ public class Contact
         response.WriteString(json);
         AddCorsHeaders(response, req);
         return response;
+    }
+
+    private async Task NotifyAdminAppAsync(string siteId, Dictionary<string, string> formData)
+    {
+        try
+        {
+            var adminUrl = _configuration["ADMIN_APP_URL"] ?? _configuration["ADMIN_URL"] ?? "http://localhost:5282";
+            using var httpClient = new HttpClient();
+            httpClient.Timeout = TimeSpan.FromSeconds(5);
+
+            var payload = new
+            {
+                SiteId = siteId,
+                Data = formData
+            };
+
+            var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+            using var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            var url = adminUrl.TrimEnd('/') + "/api/trigger-webhook";
+            var resp = await httpClient.PostAsync(url, content);
+            if (!resp.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Admin webhook trigger returned non-success status {StatusCode} for site {SiteId}", resp.StatusCode, siteId);
+            }
+            else
+            {
+                _logger.LogDebug("Admin webhook trigger successful for site {SiteId}", siteId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to notify admin app for site {SiteId}", siteId);
+        }
     }
 
     private static readonly string[] GlobalAllowedOrigins = new []
