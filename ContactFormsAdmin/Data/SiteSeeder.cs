@@ -32,6 +32,20 @@ public static class SiteSeeder
             },
             new Site
             {
+                SiteId = "garage_doors",
+                Name = "Garage Doors Demo",
+                Description = "Contact form for Garage Doors demo site",
+                ToEmail = "cody@redlettersolutions.io",
+                FromEmail = "forms@redlettersolutions.io",
+                RedirectUrl = "https://garagedoorsdemo-production.up.railway.app/thank-you",
+                AllowedOrigins = "https://garagedoorsdemo-production.up.railway.app,http://localhost:5173",
+                Secret = null,
+                IsActive = true,
+                CreatedAt = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc),
+                UpdatedAt = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc)
+            },
+            new Site
+            {
                 SiteId = "logos",
                 Name = "Logos Helix Partners",
                 Description = "Contact form for Logos Helix Partners website",

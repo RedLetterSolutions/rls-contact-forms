@@ -90,7 +90,7 @@ public class Contact
             if (!await CheckRateLimit(siteId, clientIp))
             {
                 _logger.LogWarning("Rate limit exceeded for site {SiteId} from IP {ClientIp}", siteId, clientIp);
-                return CreateJsonResponse(req, (HttpStatusCode)429, new { ok = false, error = "validation", rateLimit = true });
+                return CreateJsonResponse(req, (HttpStatusCode)429, new { ok = false, error = "validation", rateLimit = true }, siteConfig);
             }
 
             var formData = await ParseRequestData(req);
@@ -99,26 +99,26 @@ public class Contact
             {
                 _logger.LogInformation("Honeypot triggered for site {SiteId} from IP {ClientIp}", siteId, clientIp);
                 var hpResponse = req.CreateResponse(HttpStatusCode.NoContent);
-                AddCorsHeaders(hpResponse, req);
+                AddCorsHeaders(hpResponse, req, siteConfig);
                 return hpResponse; // Silent success
             }
 
             if (!ValidateOrigin(req, siteConfig))
             {
                 _logger.LogWarning("Origin validation failed for site {SiteId} from IP {ClientIp}", siteId, clientIp);
-                return CreateJsonResponse(req, HttpStatusCode.BadRequest, new { ok = false, error = "validation", origin = false });
+                return CreateJsonResponse(req, HttpStatusCode.BadRequest, new { ok = false, error = "validation", origin = false }, siteConfig);
             }
 
             if (!ValidateRequiredFields(formData, out var validationError, out var fieldErrors))
             {
                 _logger.LogWarning("Validation failed for site {SiteId}: {Error}", siteId, validationError);
-                return CreateJsonResponse(req, HttpStatusCode.BadRequest, new { ok = false, error = "validation", fields = fieldErrors });
+                return CreateJsonResponse(req, HttpStatusCode.BadRequest, new { ok = false, error = "validation", fields = fieldErrors }, siteConfig);
             }
 
             if (!ValidateHmacSignature(formData, siteConfig, siteId))
             {
                 _logger.LogWarning("HMAC validation failed for site {SiteId} from IP {ClientIp}", siteId, clientIp);
-                return CreateJsonResponse(req, HttpStatusCode.BadRequest, new { ok = false, error = "validation", signature = false });
+                return CreateJsonResponse(req, HttpStatusCode.BadRequest, new { ok = false, error = "validation", signature = false }, siteConfig);
             }
 
             await SendEmail(formData, siteConfig, siteId);
@@ -140,7 +140,7 @@ public class Contact
                 siteId, clientIp, stopwatch.ElapsedMilliseconds);
 
             var redirectValue = string.IsNullOrWhiteSpace(siteConfig.RedirectUrl) ? "/form-sent" : siteConfig.RedirectUrl;
-            return CreateJsonResponse(req, HttpStatusCode.OK, new { ok = true, redirect = redirectValue });
+            return CreateJsonResponse(req, HttpStatusCode.OK, new { ok = true, redirect = redirectValue }, siteConfig);
         }
         catch (Exception ex)
         {
@@ -503,13 +503,13 @@ public class Contact
         return "unknown";
     }
 
-    private static HttpResponseData CreateJsonResponse(HttpRequestData req, HttpStatusCode statusCode, object payload)
+    private static HttpResponseData CreateJsonResponse(HttpRequestData req, HttpStatusCode statusCode, object payload, SiteConfiguration? siteConfig = null)
     {
         var response = req.CreateResponse(statusCode);
         var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
         response.Headers.Add("Content-Type", "application/json; charset=utf-8");
         response.WriteString(json);
-        AddCorsHeaders(response, req);
+        AddCorsHeaders(response, req, siteConfig);
         return response;
     }
 
@@ -553,13 +553,16 @@ public class Contact
         "https://guitarrepairoftampa.com"
     };
 
-    private static void AddCorsHeaders(HttpResponseData response, HttpRequestData? req = null)
+    private static void AddCorsHeaders(HttpResponseData response, HttpRequestData? req = null, SiteConfiguration? siteConfig = null)
     {
-        string chosenOrigin = GlobalAllowedOrigins[0];
+        // Use site-specific origins if available, otherwise fall back to global
+        var allowedOrigins = siteConfig?.AllowOrigins?.Length > 0 ? siteConfig.AllowOrigins : GlobalAllowedOrigins;
+        
+        string chosenOrigin = allowedOrigins[0];
         if (req != null && req.Headers.TryGetValues("Origin", out var origins))
         {
             var origin = origins.FirstOrDefault();
-            if (!string.IsNullOrWhiteSpace(origin) && GlobalAllowedOrigins.Any(o => string.Equals(o, origin, StringComparison.OrdinalIgnoreCase)))
+            if (!string.IsNullOrWhiteSpace(origin) && allowedOrigins.Any(o => string.Equals(o, origin, StringComparison.OrdinalIgnoreCase)))
             {
                 chosenOrigin = origin;
             }
