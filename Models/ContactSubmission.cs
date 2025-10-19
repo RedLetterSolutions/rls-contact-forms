@@ -80,7 +80,7 @@ public class ContactSubmission
         Dictionary<string, string> formData,
         string clientIp)
     {
-        var now = DateTime.UtcNow;
+        var now = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
 
         // Extract core fields
         var name = formData.GetValueOrDefault("name", "Anonymous");

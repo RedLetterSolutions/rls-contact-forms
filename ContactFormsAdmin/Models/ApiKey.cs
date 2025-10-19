@@ -29,7 +29,7 @@ public class ApiKey
     public bool IsActive { get; set; } = true;
 
     [Column("created_at")]
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
 
     [Column("last_used_at")]
     public DateTime? LastUsedAt { get; set; }

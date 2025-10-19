@@ -28,7 +28,7 @@ public class ApiKeyService
             KeyPrefix = keyPrefix,
             Name = name,
             IsActive = true,
-            CreatedAt = DateTime.UtcNow,
+            CreatedAt = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc),
             ExpiresAt = expiresAt.HasValue ? DateTime.SpecifyKind(expiresAt.Value, DateTimeKind.Utc) : null
         };
 
@@ -48,11 +48,11 @@ public class ApiKeyService
         if (key == null)
             return null;
 
-        if (key.ExpiresAt.HasValue && key.ExpiresAt.Value < DateTime.UtcNow)
+        if (key.ExpiresAt.HasValue && key.ExpiresAt.Value < DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc))
             return null;
 
         // Update last used timestamp
-        key.LastUsedAt = DateTime.UtcNow;
+        key.LastUsedAt = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
         await _context.SaveChangesAsync();
 
         return key;

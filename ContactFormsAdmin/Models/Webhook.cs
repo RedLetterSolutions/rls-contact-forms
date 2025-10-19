@@ -36,7 +36,7 @@ public class Webhook
     public bool IsActive { get; set; } = true;
 
     [Column("created_at")]
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
 
     [Column("last_triggered_at")]
     public DateTime? LastTriggeredAt { get; set; }

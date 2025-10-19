@@ -48,7 +48,7 @@ public class WebhookService
             var content = new StringContent(json, Encoding.UTF8, "application/json");
             var response = await client.PostAsync(webhook.Url, content);
 
-            webhook.LastTriggeredAt = DateTime.UtcNow;
+            webhook.LastTriggeredAt = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
             webhook.LastSuccess = response.IsSuccessStatusCode;
             webhook.LastError = response.IsSuccessStatusCode
                 ? null
@@ -73,7 +73,7 @@ public class WebhookService
         }
         catch (Exception ex)
         {
-            webhook.LastTriggeredAt = DateTime.UtcNow;
+            webhook.LastTriggeredAt = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
             webhook.LastSuccess = false;
             webhook.LastError = ex.Message;
 

@@ -40,7 +40,7 @@ public class WebhooksController : Controller
     {
         if (ModelState.IsValid)
         {
-            webhook.CreatedAt = DateTime.UtcNow;
+            webhook.CreatedAt = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
             _context.Webhooks.Add(webhook);
             await _context.SaveChangesAsync();
 
@@ -121,7 +121,7 @@ public class WebhooksController : Controller
         {
             test = true,
             siteId = webhook.SiteId,
-            timestamp = DateTime.UtcNow,
+            timestamp = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc),
             data = new
             {
                 name = "Test User",

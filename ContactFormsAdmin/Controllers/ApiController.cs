@@ -99,15 +99,15 @@ public class ApiController : ControllerBase
             .CountAsync();
 
         var last24Hours = await _context.ContactSubmissions
-            .Where(s => s.SiteId == siteId && s.SubmittedAt >= DateTime.UtcNow.AddDays(-1))
+            .Where(s => s.SiteId == siteId && s.SubmittedAt >= DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc).AddDays(-1))
             .CountAsync();
 
         var last7Days = await _context.ContactSubmissions
-            .Where(s => s.SiteId == siteId && s.SubmittedAt >= DateTime.UtcNow.AddDays(-7))
+            .Where(s => s.SiteId == siteId && s.SubmittedAt >= DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc).AddDays(-7))
             .CountAsync();
 
         var last30Days = await _context.ContactSubmissions
-            .Where(s => s.SiteId == siteId && s.SubmittedAt >= DateTime.UtcNow.AddDays(-30))
+            .Where(s => s.SiteId == siteId && s.SubmittedAt >= DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc).AddDays(-30))
             .CountAsync();
 
         return Ok(new
