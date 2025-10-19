@@ -75,6 +75,13 @@ public class WebhooksController : Controller
         {
             try
             {
+                // Ensure DateTime properties have UTC kind before saving
+                webhook.CreatedAt = DateTime.SpecifyKind(webhook.CreatedAt, DateTimeKind.Utc);
+                if (webhook.LastTriggeredAt.HasValue)
+                {
+                    webhook.LastTriggeredAt = DateTime.SpecifyKind(webhook.LastTriggeredAt.Value, DateTimeKind.Utc);
+                }
+                
                 _context.Update(webhook);
                 await _context.SaveChangesAsync();
 

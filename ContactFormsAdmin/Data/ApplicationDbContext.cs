@@ -37,4 +37,33 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(e => e.IsActive);
         });
     }
+
+    public override int SaveChanges()
+    {
+        FixDateTimeKinds();
+        return base.SaveChanges();
+    }
+
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        FixDateTimeKinds();
+        return base.SaveChangesAsync(cancellationToken);
+    }
+
+    private void FixDateTimeKinds()
+    {
+        var entries = ChangeTracker.Entries()
+            .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified);
+
+        foreach (var entry in entries)
+        {
+            foreach (var property in entry.Properties)
+            {
+                if (property.CurrentValue is DateTime dateTime && dateTime.Kind == DateTimeKind.Unspecified)
+                {
+                    property.CurrentValue = DateTime.SpecifyKind(dateTime, DateTimeKind.Utc);
+                }
+            }
+        }
+    }
 }

@@ -42,7 +42,8 @@ public class ApiKeysController : Controller
             return View();
         }
 
-        var (apiKey, entity) = await _apiKeyService.CreateApiKeyAsync(name, expiresAt);
+        var (apiKey, entity) = await _apiKeyService.CreateApiKeyAsync(name, 
+            expiresAt.HasValue ? DateTime.SpecifyKind(expiresAt.Value, DateTimeKind.Utc) : null);
 
         TempData["NewApiKey"] = apiKey;
         TempData["Success"] = "API Key created successfully. SAVE IT NOW - it won't be shown again!";
