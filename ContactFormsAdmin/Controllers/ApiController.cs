@@ -121,31 +121,6 @@ public class ApiController : ControllerBase
     }
 
     /// <summary>
-    /// Get list of all site IDs
-    /// </summary>
-    [HttpGet("sites")]
-    public async Task<IActionResult> GetSites()
-    {
-        var sites = await _context.ContactSubmissions
-            .Select(s => s.SiteId)
-            .Distinct()
-            .OrderBy(s => s)
-            .ToListAsync();
-
-        var siteStats = new List<object>();
-        foreach (var site in sites)
-        {
-            var count = await _context.ContactSubmissions
-                .Where(s => s.SiteId == site)
-                .CountAsync();
-
-            siteStats.Add(new { siteId = site, submissionCount = count });
-        }
-
-        return Ok(new { sites = siteStats });
-    }
-
-    /// <summary>
     /// Delete a submission by ID
     /// </summary>
     [HttpDelete("submissions/{id}")]
