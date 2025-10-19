@@ -1,0 +1,88 @@
+@{
+    ViewData["Title"] = "Create API Key";
+}
+
+<div class="row">
+    <div class="col-md-8">
+        <h1>Create API Key</h1>
+        <p class="text-muted">Generate a new API key for programmatic access to contact form submissions.</p>
+
+        <form asp-action="Create" method="post" class="needs-validation" novalidate>
+            <div class="card">
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Name</label>
+                        <input type="text" class="form-control" id="name" name="name" placeholder="e.g., Production Server, Mobile App" required />
+                        <div class="form-text">A descriptive name to identify where this API key is used.</div>
+                        <div class="invalid-feedback">
+                            Please provide a name for this API key.
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="expiresAt" class="form-label">Expiration Date (Optional)</label>
+                        <input type="date" class="form-control" id="expiresAt" name="expiresAt" min="@DateTime.UtcNow.AddDays(1).ToString("yyyy-MM-dd")" />
+                        <div class="form-text">Leave empty for keys that never expire. For security, it's recommended to set an expiration date.</div>
+                    </div>
+
+                    <div class="alert alert-warning">
+                        <strong>Important:</strong> The API key will only be shown once after creation. Make sure to save it securely.
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-3">
+                <button type="submit" class="btn btn-primary">Create API Key</button>
+                <a asp-action="Index" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">API Key Security</h5>
+            </div>
+            <div class="card-body">
+                <p class="small"><strong>Best Practices:</strong></p>
+                <ul class="small">
+                    <li>Store API keys securely (environment variables, secret managers)</li>
+                    <li>Never commit API keys to version control</li>
+                    <li>Set expiration dates for additional security</li>
+                    <li>Use different keys for different environments</li>
+                    <li>Rotate keys periodically</li>
+                    <li>Delete unused keys immediately</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0">API Usage Example</h5>
+            </div>
+            <div class="card-body">
+                <p class="small">Use the API key in the Authorization header:</p>
+                <pre class="bg-light p-2" style="font-size: 0.75em;">curl -H "Authorization: Bearer YOUR_API_KEY" \
+  https://your-api.com/api/submissions</pre>
+
+                <p class="small mt-3">Available endpoints:</p>
+                <ul class="small">
+                    <li><code>GET /api/submissions</code></li>
+                    <li><code>GET /api/submissions/{id}</code></li>
+                    <li><code>GET /api/sites/{siteId}/submissions</code></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+    <script>
+        // Set min date to tomorrow
+        const dateInput = document.getElementById('expiresAt');
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        dateInput.min = tomorrow.toISOString().split('T')[0];
+    </script>
+}

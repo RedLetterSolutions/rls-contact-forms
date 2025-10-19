@@ -1,0 +1,135 @@
+@model IEnumerable<ContactFormsAdmin.Models.ContactSubmission>
+
+@{
+    ViewData["Title"] = "Contact Submissions";
+    var sites = ViewBag.Sites as List<string> ?? new List<string>();
+    var currentSiteId = ViewBag.CurrentSiteId as string;
+    var totalCount = ViewBag.TotalCount as int? ?? 0;
+    var page = ViewBag.Page as int? ?? 1;
+    var pageSize = ViewBag.PageSize as int? ?? 50;
+    var totalPages = ViewBag.TotalPages as int? ?? 0;
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Contact Submissions</h1>
+    <div class="text-muted">
+        Total: @totalCount submissions
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-4">
+                <label for="siteId" class="form-label">Filter by Site</label>
+                <select name="siteId" id="siteId" class="form-select" onchange="this.form.submit()">
+                    <option value="">All Sites</option>
+                    @foreach (var site in sites)
+                    {
+                        <option value="@site" selected="@(site == currentSiteId)">@site</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label for="pageSize" class="form-label">Per Page</label>
+                <select name="pageSize" id="pageSize" class="form-select" onchange="this.form.submit()">
+                    <option value="25" selected="@(pageSize == 25)">25</option>
+                    <option value="50" selected="@(pageSize == 50)">50</option>
+                    <option value="100" selected="@(pageSize == 100)">100</option>
+                </select>
+            </div>
+        </form>
+    </div>
+</div>
+
+@if (!Model.Any())
+{
+    <div class="alert alert-info">
+        No submissions found. @(string.IsNullOrEmpty(currentSiteId) ? "Try selecting a different site or check back later." : $"No submissions for site '{currentSiteId}'.")
+    </div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Site</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Message</th>
+                    <th>Submitted At</th>
+                    <th>IP Address</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var submission in Model)
+                {
+                    <tr>
+                        <td>@submission.Id</td>
+                        <td><span class="badge bg-primary">@submission.SiteId</span></td>
+                        <td>@submission.Name</td>
+                        <td>@submission.Email</td>
+                        <td>
+                            @if (submission.Message.Length > 50)
+                            {
+                                <span>@submission.Message.Substring(0, 50)...</span>
+                            }
+                            else
+                            {
+                                <span>@submission.Message</span>
+                            }
+                        </td>
+                        <td>@submission.SubmittedAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                        <td>@submission.ClientIp</td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a asp-action="Details" asp-route-id="@submission.Id" class="btn btn-info">View</a>
+                                <button type="button" class="btn btn-danger" onclick="deleteSubmission(@submission.Id)">Delete</button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (totalPages > 1)
+    {
+        <nav aria-label="Page navigation" class="mt-4">
+            <ul class="pagination justify-content-center">
+                <li class="page-item @(page <= 1 ? "disabled" : "")">
+                    <a class="page-link" asp-action="Index" asp-route-siteId="@currentSiteId" asp-route-page="@(page - 1)" asp-route-pageSize="@pageSize">Previous</a>
+                </li>
+
+                @for (int i = Math.Max(1, page - 2); i <= Math.Min(totalPages, page + 2); i++)
+                {
+                    <li class="page-item @(i == page ? "active" : "")">
+                        <a class="page-link" asp-action="Index" asp-route-siteId="@currentSiteId" asp-route-page="@i" asp-route-pageSize="@pageSize">@i</a>
+                    </li>
+                }
+
+                <li class="page-item @(page >= totalPages ? "disabled" : "")">
+                    <a class="page-link" asp-action="Index" asp-route-siteId="@currentSiteId" asp-route-page="@(page + 1)" asp-route-pageSize="@pageSize">Next</a>
+                </li>
+            </ul>
+        </nav>
+    }
+}
+
+<form id="deleteForm" asp-action="Delete" method="post" style="display: none;">
+    <input type="hidden" name="id" id="deleteId" />
+</form>
+
+@section Scripts {
+    <script>
+        function deleteSubmission(id) {
+            if (confirm('Are you sure you want to delete this submission?')) {
+                document.getElementById('deleteId').value = id;
+                document.getElementById('deleteForm').submit();
+            }
+        }
+    </script>
+}

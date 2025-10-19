@@ -1,0 +1,128 @@
+@model ContactFormsAdmin.Models.Webhook
+
+@{
+    ViewData["Title"] = "Edit Webhook";
+}
+
+<div class="row">
+    <div class="col-md-8">
+        <h1>Edit Webhook</h1>
+        <p class="text-muted">Update webhook configuration for @Model.SiteId</p>
+
+        <form asp-action="Edit" method="post" class="needs-validation" novalidate>
+            <input type="hidden" asp-for="Id" />
+            <input type="hidden" asp-for="CreatedAt" />
+
+            <div class="card">
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label asp-for="SiteId" class="form-label">Site ID</label>
+                        <input asp-for="SiteId" class="form-control" required />
+                        <div class="form-text">The site ID that this webhook should trigger for.</div>
+                        <span asp-validation-for="SiteId" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Url" class="form-label">Webhook URL</label>
+                        <input asp-for="Url" type="url" class="form-control" required />
+                        <div class="form-text">The URL where POST requests will be sent when forms are submitted.</div>
+                        <span asp-validation-for="Url" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Events" class="form-label">Events (Optional)</label>
+                        <input asp-for="Events" class="form-control" placeholder="submission.created, submission.updated" />
+                        <div class="form-text">Comma-separated list of events to trigger on. Leave empty for all events.</div>
+                        <span asp-validation-for="Events" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Secret" class="form-label">Secret (Optional)</label>
+                        <input asp-for="Secret" type="password" class="form-control" placeholder="Leave empty to keep current secret" />
+                        <div class="form-text">Optional secret for HMAC-SHA256 signature verification. Leave empty to keep existing secret.</div>
+                        <span asp-validation-for="Secret" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input asp-for="IsActive" class="form-check-input" type="checkbox" />
+                            <label asp-for="IsActive" class="form-check-label">
+                                Active
+                            </label>
+                            <div class="form-text">Webhook will only trigger if active.</div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <strong>Created:</strong> @Model.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss") UTC
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-3">
+                <button type="submit" class="btn btn-primary">Update Webhook</button>
+                <a asp-action="Index" class="btn btn-secondary">Cancel</a>
+                <button type="button" class="btn btn-outline-danger float-end" onclick="deleteWebhook()">Delete Webhook</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Test Webhook</h5>
+            </div>
+            <div class="card-body">
+                <p>Send a test payload to verify your webhook is working correctly.</p>
+                <form asp-action="Test" method="post">
+                    <input type="hidden" name="id" value="@Model.Id" />
+                    <button type="submit" class="btn btn-info w-100">Send Test Webhook</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0">Webhook Info</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>Webhook ID:</strong> @Model.Id</p>
+                <p><strong>Status:</strong>
+                    @if (Model.IsActive)
+                    {
+                        <span class="badge bg-success">Active</span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-secondary">Inactive</span>
+                    }
+                </p>
+                <p class="mb-0"><strong>Secured:</strong>
+                    @if (!string.IsNullOrEmpty(Model.Secret))
+                    {
+                        <span class="badge bg-warning text-dark">Yes (HMAC)</span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-secondary">No</span>
+                    }
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<form id="deleteForm" asp-action="Delete" method="post" style="display: none;">
+    <input type="hidden" name="id" value="@Model.Id" />
+</form>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+    <script>
+        function deleteWebhook() {
+            if (confirm('Are you sure you want to delete this webhook? This action cannot be undone.')) {
+                document.getElementById('deleteForm').submit();
+            }
+        }
+    </script>
+}

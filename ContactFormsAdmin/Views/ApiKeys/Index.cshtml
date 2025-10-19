@@ -1,0 +1,162 @@
+@model IEnumerable<ContactFormsAdmin.Models.ApiKey>
+
+@{
+    ViewData["Title"] = "API Keys";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>API Keys</h1>
+    <a asp-action="Create" class="btn btn-primary">Create New API Key</a>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        @TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+@if (TempData["NewApiKey"] != null)
+{
+    <div class="alert alert-warning alert-dismissible fade show" role="alert">
+        <h4 class="alert-heading">New API Key Created!</h4>
+        <p class="mb-2">Please save this API key securely. It will not be shown again.</p>
+        <div class="input-group">
+            <input type="text" class="form-control font-monospace" id="newApiKey" value="@TempData["NewApiKey"]" readonly />
+            <button class="btn btn-outline-secondary" type="button" onclick="copyApiKey()">
+                <i class="bi bi-clipboard"></i> Copy
+            </button>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+@if (!Model.Any())
+{
+    <div class="alert alert-info">
+        <h4 class="alert-heading">No API keys configured</h4>
+        <p>API keys allow programmatic access to the contact form submission data via REST API.</p>
+        <hr>
+        <p class="mb-0">
+            <a asp-action="Create" class="btn btn-primary">Create Your First API Key</a>
+        </p>
+    </div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Key Prefix</th>
+                    <th>Status</th>
+                    <th>Last Used</th>
+                    <th>Created At</th>
+                    <th>Expires At</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var apiKey in Model)
+                {
+                    var isExpired = apiKey.ExpiresAt.HasValue && apiKey.ExpiresAt.Value < DateTime.UtcNow;
+
+                    <tr class="@(isExpired ? "table-secondary" : "")">
+                        <td>
+                            <strong>@apiKey.Name</strong>
+                        </td>
+                        <td>
+                            <code>@apiKey.KeyPrefix***</code>
+                        </td>
+                        <td>
+                            @if (isExpired)
+                            {
+                                <span class="badge bg-danger">Expired</span>
+                            }
+                            else if (apiKey.IsActive)
+                            {
+                                <span class="badge bg-success">Active</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">Inactive</span>
+                            }
+                        </td>
+                        <td>
+                            @if (apiKey.LastUsedAt.HasValue)
+                            {
+                                <span>@apiKey.LastUsedAt.Value.ToString("yyyy-MM-dd HH:mm")</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">Never</span>
+                            }
+                        </td>
+                        <td>@apiKey.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                        <td>
+                            @if (apiKey.ExpiresAt.HasValue)
+                            {
+                                <span>@apiKey.ExpiresAt.Value.ToString("yyyy-MM-dd")</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">Never</span>
+                            }
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                @if (!isExpired)
+                                {
+                                    <form asp-action="ToggleActive" method="post" style="display: inline;">
+                                        <input type="hidden" name="id" value="@apiKey.Id" />
+                                        <button type="submit" class="btn btn-outline-secondary">
+                                            @(apiKey.IsActive ? "Disable" : "Enable")
+                                        </button>
+                                    </form>
+                                }
+
+                                <button type="button" class="btn btn-outline-danger" onclick="deleteApiKey(@apiKey.Id, '@apiKey.Name')">Delete</button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+<form id="deleteForm" asp-action="Delete" method="post" style="display: none;">
+    <input type="hidden" name="id" id="deleteId" />
+</form>
+
+@section Scripts {
+    <script>
+        function deleteApiKey(id, name) {
+            if (confirm(`Are you sure you want to delete the API key "${name}"? This action cannot be undone and will immediately revoke access.`)) {
+                document.getElementById('deleteId').value = id;
+                document.getElementById('deleteForm').submit();
+            }
+        }
+
+        function copyApiKey() {
+            const input = document.getElementById('newApiKey');
+            input.select();
+            input.setSelectionRange(0, 99999); // For mobile devices
+            navigator.clipboard.writeText(input.value);
+
+            const button = event.target.closest('button');
+            const originalText = button.innerHTML;
+            button.innerHTML = '<i class="bi bi-check"></i> Copied!';
+            button.classList.remove('btn-outline-secondary');
+            button.classList.add('btn-success');
+
+            setTimeout(() => {
+                button.innerHTML = originalText;
+                button.classList.remove('btn-success');
+                button.classList.add('btn-outline-secondary');
+            }, 2000);
+        }
+    </script>
+}

@@ -1,0 +1,138 @@
+@model IEnumerable<ContactFormsAdmin.Models.Webhook>
+
+@{
+    ViewData["Title"] = "Webhooks";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Webhooks</h1>
+    <a asp-action="Create" class="btn btn-primary">Create New Webhook</a>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        @TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+@if (!Model.Any())
+{
+    <div class="alert alert-info">
+        <h4 class="alert-heading">No webhooks configured</h4>
+        <p>Webhooks allow you to receive real-time notifications when contact forms are submitted.</p>
+        <hr>
+        <p class="mb-0">
+            <a asp-action="Create" class="btn btn-primary">Create Your First Webhook</a>
+        </p>
+    </div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th>Site ID</th>
+                    <th>URL</th>
+                    <th>Events</th>
+                    <th>Status</th>
+                    <th>Secret</th>
+                    <th>Created At</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var webhook in Model)
+                {
+                    <tr>
+                        <td><span class="badge bg-primary">@webhook.SiteId</span></td>
+                        <td>
+                            <code style="font-size: 0.85em;">@webhook.Url</code>
+                        </td>
+                        <td>
+                            @if (!string.IsNullOrEmpty(webhook.Events))
+                            {
+                                var events = webhook.Events.Split(',', StringSplitOptions.RemoveEmptyEntries);
+                                foreach (var evt in events)
+                                {
+                                    <span class="badge bg-info me-1">@evt.Trim()</span>
+                                }
+                            }
+                            else
+                            {
+                                <span class="text-muted">All events</span>
+                            }
+                        </td>
+                        <td>
+                            @if (webhook.IsActive)
+                            {
+                                <span class="badge bg-success">Active</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">Inactive</span>
+                            }
+                        </td>
+                        <td>
+                            @if (!string.IsNullOrEmpty(webhook.Secret))
+                            {
+                                <span class="badge bg-warning text-dark" title="HMAC signature enabled">
+                                    <i class="bi bi-shield-check"></i> Secured
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">None</span>
+                            }
+                        </td>
+                        <td>@webhook.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a asp-action="Edit" asp-route-id="@webhook.Id" class="btn btn-outline-primary">Edit</a>
+
+                                <form asp-action="Test" method="post" style="display: inline;">
+                                    <input type="hidden" name="id" value="@webhook.Id" />
+                                    <button type="submit" class="btn btn-outline-info">Test</button>
+                                </form>
+
+                                <form asp-action="ToggleActive" method="post" style="display: inline;">
+                                    <input type="hidden" name="id" value="@webhook.Id" />
+                                    <button type="submit" class="btn btn-outline-secondary">
+                                        @(webhook.IsActive ? "Disable" : "Enable")
+                                    </button>
+                                </form>
+
+                                <button type="button" class="btn btn-outline-danger" onclick="deleteWebhook(@webhook.Id)">Delete</button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+<form id="deleteForm" asp-action="Delete" method="post" style="display: none;">
+    <input type="hidden" name="id" id="deleteId" />
+</form>
+
+@section Scripts {
+    <script>
+        function deleteWebhook(id) {
+            if (confirm('Are you sure you want to delete this webhook? This action cannot be undone.')) {
+                document.getElementById('deleteId').value = id;
+                document.getElementById('deleteForm').submit();
+            }
+        }
+    </script>
+}

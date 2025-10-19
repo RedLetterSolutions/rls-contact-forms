@@ -1,0 +1,142 @@
+@model ContactFormsAdmin.Models.ContactSubmission
+
+@{
+    ViewData["Title"] = "Submission Details";
+    var metadata = Model.GetMetadata();
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Submission Details</h1>
+    <div>
+        <a asp-action="Index" class="btn btn-secondary">Back to List</a>
+        <button type="button" class="btn btn-danger" onclick="deleteSubmission()">Delete</button>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Core Information</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless">
+                    <tbody>
+                        <tr>
+                            <th style="width: 200px;">Submission ID:</th>
+                            <td>@Model.Id</td>
+                        </tr>
+                        <tr>
+                            <th>Site ID:</th>
+                            <td><span class="badge bg-primary">@Model.SiteId</span></td>
+                        </tr>
+                        <tr>
+                            <th>Name:</th>
+                            <td>@Model.Name</td>
+                        </tr>
+                        <tr>
+                            <th>Email:</th>
+                            <td><a href="mailto:@Model.Email">@Model.Email</a></td>
+                        </tr>
+                        <tr>
+                            <th>Client IP:</th>
+                            <td>@Model.ClientIp</td>
+                        </tr>
+                        <tr>
+                            <th>Submitted At:</th>
+                            <td>@Model.SubmittedAt.ToString("yyyy-MM-dd HH:mm:ss") UTC</td>
+                        </tr>
+                        <tr>
+                            <th>Created At:</th>
+                            <td>@Model.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss") UTC</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Message</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-light" style="white-space: pre-wrap;">@Model.Message</div>
+            </div>
+        </div>
+
+        @if (metadata != null && metadata.Any())
+        {
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Additional Metadata</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Field</th>
+                                <th>Value</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var kvp in metadata.OrderBy(k => k.Key))
+                            {
+                                <tr>
+                                    <td><strong>@kvp.Key</strong></td>
+                                    <td>@kvp.Value</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Actions</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="mailto:@Model.Email?subject=Re: Your Contact Form Submission" class="btn btn-primary">
+                        Reply via Email
+                    </a>
+                    <a asp-action="Index" asp-route-siteId="@Model.SiteId" class="btn btn-outline-secondary">
+                        View All from @Model.SiteId
+                    </a>
+                    <button type="button" class="btn btn-outline-danger" onclick="deleteSubmission()">
+                        Delete Submission
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        @if (metadata != null && metadata.Any())
+        {
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5 class="mb-0">Raw JSON Metadata</h5>
+                </div>
+                <div class="card-body">
+                    <pre class="bg-light p-2" style="font-size: 0.85em; max-height: 300px; overflow-y: auto;">@System.Text.Json.JsonSerializer.Serialize(metadata, new System.Text.Json.JsonSerializerOptions { WriteIndented = true })</pre>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+<form id="deleteForm" asp-action="Delete" method="post" style="display: none;">
+    <input type="hidden" name="id" value="@Model.Id" />
+</form>
+
+@section Scripts {
+    <script>
+        function deleteSubmission() {
+            if (confirm('Are you sure you want to delete this submission? This action cannot be undone.')) {
+                document.getElementById('deleteForm').submit();
+            }
+        }
+    </script>
+}
