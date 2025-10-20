@@ -346,6 +346,12 @@ Query and manage contact form submissions.
   - Query params: `startDate` (DateTime?), `endDate` (DateTime?), `limit` (int)
   - Returns: Array of submissions within date range
 
+- `POST /api/submissions` - Create new submission
+  - Body: `{ siteId, name, email, message, clientIp?, submittedAt?, metadata? }`
+  - Returns: Created submission object (201)
+  - Validation: siteId must exist, name/email/message required
+  - Use case: Import submissions from external sources (WordPress, other forms)
+
 - `DELETE /api/submissions/{id}` - Delete submission by ID
   - Returns: Success message
 
@@ -445,6 +451,20 @@ curl -X POST http://localhost:5282/api/webhooks \
     "description": "Test webhook"
   }'
 
+# Create a submission (e.g., from WordPress)
+curl -X POST http://localhost:5282/api/submissions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "siteId": "test-site",
+    "name": "John Doe",
+    "email": "john@example.com",
+    "message": "Hello from WordPress!",
+    "metadata": {
+      "phone": "555-1234",
+      "source": "WordPress Contact Form 7"
+    }
+  }'
+
 # List submissions for a site
 curl http://localhost:5282/api/submissions/test-site?limit=10
 
@@ -467,4 +487,71 @@ const response = await fetch('http://localhost:5282/api/sites', {
 });
 const data = await response.json();
 console.log(data.site);
+
+// Create a submission from external source
+const submissionResponse = await fetch('http://localhost:5282/api/submissions', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    siteId: 'my-site',
+    name: 'Jane Smith',
+    email: 'jane@example.com',
+    message: 'I would like more information',
+    clientIp: '192.168.1.100',
+    metadata: {
+      phone: '555-9876',
+      company: 'Tech Solutions',
+      budget_range: '$10k-$50k'
+    }
+  })
+});
+const submissionData = await submissionResponse.json();
+console.log(submissionData.submission);
+```
+
+### WordPress Integration Example
+
+To integrate with WordPress and track submissions in this app:
+
+**PHP Code for WordPress** (add to functions.php or a custom plugin):
+```php
+// Hook into Contact Form 7 submission
+add_action('wpcf7_mail_sent', 'send_to_contact_forms_api');
+
+function send_to_contact_forms_api($contact_form) {
+    $submission = WPCF7_Submission::get_instance();
+    
+    if ($submission) {
+        $posted_data = $submission->get_posted_data();
+        
+        // Prepare data for API
+        $api_data = array(
+            'siteId' => 'wordpress-site-1', // Your site ID
+            'name' => $posted_data['your-name'] ?? '',
+            'email' => $posted_data['your-email'] ?? '',
+            'message' => $posted_data['your-message'] ?? '',
+            'clientIp' => $_SERVER['REMOTE_ADDR'],
+            'metadata' => array(
+                'phone' => $posted_data['your-phone'] ?? '',
+                'source' => 'WordPress Contact Form 7',
+                'form_id' => $contact_form->id(),
+            )
+        );
+        
+        // Send to API
+        wp_remote_post('https://your-api-domain.com/api/submissions', array(
+            'headers' => array('Content-Type' => 'application/json'),
+            'body' => json_encode($api_data),
+            'timeout' => 15
+        ));
+    }
+}
+```
+
+This allows you to:
+1. Keep using your existing WordPress forms
+2. Track all submissions in a centralized database
+3. View all client submissions in one admin dashboard
+4. Maintain historical data even if you migrate away from WordPress
+5. Support multiple WordPress sites with different `siteId` values
 ```
