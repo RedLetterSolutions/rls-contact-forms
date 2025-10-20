@@ -27,6 +27,11 @@ public class AdminUserService
         return await _db.AdminUsers.FirstOrDefaultAsync(u => u.Username == username && u.IsActive);
     }
 
+    public async Task<AdminUser?> GetByIdAsync(long id)
+    {
+        return await _db.AdminUsers.FirstOrDefaultAsync(u => u.Id == id);
+    }
+
     public async Task<bool> ValidateCredentialsAsync(string username, string password)
     {
         var user = await GetByUsernameAsync(username);
@@ -62,5 +67,14 @@ public class AdminUserService
             _db.AdminUsers.Remove(user);
             await _db.SaveChangesAsync();
         }
+    }
+
+    public async Task<bool> UpdatePasswordAsync(long id, string newPassword)
+    {
+        var user = await _db.AdminUsers.FindAsync(id);
+        if (user == null) return false;
+        user.PasswordHash = HashPassword(newPassword);
+        await _db.SaveChangesAsync();
+        return true;
     }
 }

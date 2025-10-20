@@ -29,7 +29,8 @@
                 <td>@u.Username</td>
                 <td>@(u.IsActive ? "Yes" : "No")</td>
                 <td>@u.CreatedAt.ToString("u")</td>
-                <td class="text-end">
+                <td class="text-end d-flex gap-2 justify-content-end">
+                    <a asp-action="Reset" asp-route-id="@u.Id" class="btn btn-sm btn-warning">Reset Password</a>
                     <form asp-action="Delete" method="post" onsubmit="return confirm('Delete user @u.Username?');">
                         <input type="hidden" name="id" value="@u.Id" />
                         <button type="submit" class="btn btn-sm btn-danger">Delete</button>

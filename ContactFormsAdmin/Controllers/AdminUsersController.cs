@@ -40,6 +40,48 @@ public class AdminUsersController : Controller
         return RedirectToAction(nameof(Index));
     }
 
+    public async Task<IActionResult> Reset(long id)
+    {
+        var user = await _service.GetByIdAsync(id);
+        if (user == null)
+        {
+            return NotFound();
+        }
+        ViewBag.UserId = id;
+        ViewBag.Username = user.Username;
+        return View();
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Reset(long id, string password, string confirmPassword)
+    {
+        if (string.IsNullOrWhiteSpace(password))
+        {
+            ViewBag.Error = "Password is required.";
+            var user = await _service.GetByIdAsync(id);
+            ViewBag.UserId = id;
+            ViewBag.Username = user?.Username ?? "";
+            return View();
+        }
+        if (password != confirmPassword)
+        {
+            ViewBag.Error = "Passwords do not match.";
+            var user = await _service.GetByIdAsync(id);
+            ViewBag.UserId = id;
+            ViewBag.Username = user?.Username ?? "";
+            return View();
+        }
+
+        var ok = await _service.UpdatePasswordAsync(id, password);
+        if (!ok)
+        {
+            return NotFound();
+        }
+        TempData["Success"] = "Password updated.";
+        return RedirectToAction(nameof(Index));
+    }
+
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(long id)
