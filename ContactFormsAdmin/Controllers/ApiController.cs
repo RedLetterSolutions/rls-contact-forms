@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ContactFormsAdmin.Data;
+using ContactFormsAdmin.Models;
+using System.Text.Json;
 
 namespace ContactFormsAdmin.Controllers;
 
@@ -292,4 +294,103 @@ public class ApiController : ControllerBase
             return StatusCode(500, new { success = false, error = "Failed to retrieve submissions", details = ex.Message });
         }
     }
+
+    /// <summary>
+    /// Create a new submission for a site
+    /// </summary>
+    [HttpPost("submissions")]
+    public async Task<IActionResult> CreateSubmission([FromBody] CreateSubmissionRequest request)
+    {
+        try
+        {
+            // Validate required fields
+            if (string.IsNullOrWhiteSpace(request.SiteId))
+            {
+                return BadRequest(new { success = false, error = "siteId is required" });
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Name))
+            {
+                return BadRequest(new { success = false, error = "name is required" });
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Email))
+            {
+                return BadRequest(new { success = false, error = "email is required" });
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Message))
+            {
+                return BadRequest(new { success = false, error = "message is required" });
+            }
+
+            // Verify site exists
+            var siteExists = await _context.Sites.AnyAsync(s => s.SiteId == request.SiteId);
+            if (!siteExists)
+            {
+                return NotFound(new { success = false, error = $"Site '{request.SiteId}' not found" });
+            }
+
+            // Create submission
+            var now = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
+            
+            var submission = new ContactSubmission
+            {
+                SiteId = request.SiteId,
+                Name = request.Name,
+                Email = request.Email,
+                Message = request.Message,
+                ClientIp = request.ClientIp ?? "API",
+                SubmittedAt = request.SubmittedAt.HasValue 
+                    ? DateTime.SpecifyKind(request.SubmittedAt.Value, DateTimeKind.Utc) 
+                    : now,
+                MetadataJson = request.Metadata != null && request.Metadata.Count > 0
+                    ? JsonSerializer.Serialize(request.Metadata, new JsonSerializerOptions { WriteIndented = false })
+                    : null,
+                CreatedAt = now
+            };
+
+            _context.ContactSubmissions.Add(submission);
+            await _context.SaveChangesAsync();
+
+            return CreatedAtAction(
+                nameof(GetSubmission),
+                new { siteId = submission.SiteId, id = submission.Id },
+                new
+                {
+                    success = true,
+                    message = "Submission created successfully",
+                    submission = new
+                    {
+                        submission.Id,
+                        submission.SiteId,
+                        submission.Name,
+                        submission.Email,
+                        submission.Message,
+                        submission.ClientIp,
+                        submission.SubmittedAt,
+                        Metadata = submission.GetMetadata(),
+                        submission.CreatedAt
+                    }
+                });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { success = false, error = "Failed to create submission", details = ex.Message });
+        }
+    }
+}
+
+/// <summary>
+/// Request model for creating a new submission
+/// </summary>
+public class CreateSubmissionRequest
+{
+    public string SiteId { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+    public string? ClientIp { get; set; }
+    public DateTime? SubmittedAt { get; set; }
+    public Dictionary<string, string>? Metadata { get; set; }
 }
