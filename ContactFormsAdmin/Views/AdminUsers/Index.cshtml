@@ -1,0 +1,41 @@
+@model IEnumerable<ContactFormsAdmin.Models.AdminUser>
+@{
+    ViewData["Title"] = "Admin Users";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Admin Users</h2>
+    <a class="btn btn-primary" asp-action="Create">Add User</a>
+    </div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success">@TempData["Success"]</div>
+}
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Username</th>
+            <th>Active</th>
+            <th>Created</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var u in Model)
+        {
+            <tr>
+                <td>@u.Username</td>
+                <td>@(u.IsActive ? "Yes" : "No")</td>
+                <td>@u.CreatedAt.ToString("u")</td>
+                <td class="text-end">
+                    <form asp-action="Delete" method="post" onsubmit="return confirm('Delete user @u.Username?');">
+                        <input type="hidden" name="id" value="@u.Id" />
+                        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                    </form>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>

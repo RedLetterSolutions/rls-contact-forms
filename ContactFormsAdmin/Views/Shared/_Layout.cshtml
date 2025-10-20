@@ -32,6 +32,9 @@
                         <li class="nav-item">
                             <a class="nav-link text-dark" asp-area="" asp-controller="ApiKeys" asp-action="Index">API Keys</a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-dark" asp-area="" asp-controller="AdminUsers" asp-action="Index">Admin Users</a>
+                        </li>
                     </ul>
                     @if (User.Identity?.IsAuthenticated == true)
                     {

@@ -8,10 +8,12 @@ namespace ContactFormsAdmin.Controllers;
 public class AuthController : Controller
 {
     private readonly IConfiguration _configuration;
+    private readonly ContactFormsAdmin.Services.AdminUserService _adminUserService;
 
-    public AuthController(IConfiguration configuration)
+    public AuthController(IConfiguration configuration, ContactFormsAdmin.Services.AdminUserService adminUserService)
     {
         _configuration = configuration;
+        _adminUserService = adminUserService;
     }
 
     public IActionResult Login(string? returnUrl = null)
@@ -24,11 +26,8 @@ public class AuthController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Login(string username, string password, string? returnUrl = null)
     {
-        // Simple username/password check against config
-        var adminUsername = _configuration["AdminUsername"] ?? "admin";
-        var adminPassword = _configuration["AdminPassword"] ?? "admin123";
-
-        if (username == adminUsername && password == adminPassword)
+        // Validate against AdminUsers table
+        if (await _adminUserService.ValidateCredentialsAsync(username, password))
         {
             var claims = new List<Claim>
             {

@@ -19,6 +19,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 // Services
 builder.Services.AddScoped<WebhookService>();
 builder.Services.AddScoped<ApiKeyService>();
+builder.Services.AddScoped<AdminUserService>();
 builder.Services.AddHttpClient();
 
 // Authentication
@@ -44,6 +45,28 @@ using (var scope = app.Services.CreateScope())
     
     // Seed initial data
     await SiteSeeder.SeedSitesAsync(db);
+
+    // Seed initial admin user if none exist
+    var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+    var adminService = scope.ServiceProvider.GetRequiredService<AdminUserService>();
+    // Ensure admin_users table exists (idempotent)
+    await db.Database.ExecuteSqlRawAsync(@"CREATE TABLE IF NOT EXISTS admin_users (
+        id BIGSERIAL PRIMARY KEY,
+        username VARCHAR(100) NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMPTZ NOT NULL
+    );");
+    await db.Database.ExecuteSqlRawAsync("CREATE UNIQUE INDEX IF NOT EXISTS IX_admin_users_username ON admin_users (username);");
+
+    if (!await db.AdminUsers.AnyAsync())
+    {
+        var initialUser = config["AdminUsername"] ?? "admin";
+        var initialPass = config["AdminPassword"] ?? Guid.NewGuid().ToString("n").Substring(0, 12);
+        await adminService.CreateAsync(initialUser, initialPass);
+        app.Logger.LogInformation("Seeded default admin user '{User}'.", initialUser);
+        app.Logger.LogWarning("Default admin password created. Please change it immediately. Username: {User} Password: {Pass}", initialUser, initialPass);
+    }
 }
 
 // Configure the HTTP request pipeline

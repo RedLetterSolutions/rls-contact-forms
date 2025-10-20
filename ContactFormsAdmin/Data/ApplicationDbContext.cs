@@ -14,6 +14,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<Webhook> Webhooks { get; set; } = null!;
     public DbSet<ApiKey> ApiKeys { get; set; } = null!;
     public DbSet<Site> Sites { get; set; } = null!;
+    public DbSet<AdminUser> AdminUsers { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -42,6 +43,12 @@ public class ApplicationDbContext : DbContext
         {
             entity.HasIndex(e => e.SiteId).IsUnique();
             entity.HasIndex(e => e.IsActive);
+        });
+
+        modelBuilder.Entity<AdminUser>(entity =>
+        {
+            entity.HasIndex(e => e.Username).IsUnique();
+            entity.Property(e => e.Username).HasMaxLength(100);
         });
     }
 
