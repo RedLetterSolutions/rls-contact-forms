@@ -278,6 +278,85 @@ curl -X DELETE "https://forms.redlettersolutions.io/api/submissions/guitar_repai
 
 ---
 
+### 3.5. Create a Submission (Optional Webhook Trigger)
+
+Create a submission record, with an option to trigger site webhooks immediately.
+
+**Endpoint:** `POST /api/submissions`  
+**Optional Query:** `?triggerWebhooks=true`  
+**Optional Body Field:** `"triggerWebhooks": true`
+
+**CURL Example (trigger via query):**
+
+```bash
+curl -X POST "https://forms.redlettersolutions.io/api/submissions?triggerWebhooks=true" \
+  -H "X-API-Key: cfadmin_xpfWC5wGq9VvlfowvdcoTL8k2KXgKERS666WqrnrSjA" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "siteId": "guitar_repair_of_tampa_bay",
+    "name": "John Doe",
+    "email": "john@example.com",
+    "message": "Need a guitar setup",
+    "metadata": { "phone": "+1234567890" }
+  }'
+```
+
+**CURL Example (trigger via body):**
+
+```bash
+curl -X POST "https://forms.redlettersolutions.io/api/submissions" \
+  -H "X-API-Key: cfadmin_xpfWC5wGq9VvlfowvdcoTL8k2KXgKERS666WqrnrSjA" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "siteId": "guitar_repair_of_tampa_bay",
+    "name": "John Doe",
+    "email": "john@example.com",
+    "message": "Need a guitar setup",
+    "triggerWebhooks": true
+  }'
+```
+
+**Response Example:**
+
+```json
+{
+  "success": true,
+  "message": "Submission created successfully",
+  "webhooksRequested": true,
+  "submission": {
+    "id": 123,
+    "siteId": "guitar_repair_of_tampa_bay",
+    "name": "John Doe",
+    "email": "john@example.com",
+    "message": "Need a guitar setup",
+    "clientIp": "API",
+    "submittedAt": "2025-10-21T10:00:00Z",
+    "metadata": { "phone": "+1234567890" },
+    "createdAt": "2025-10-21T10:00:00Z"
+  }
+}
+```
+
+**PowerShell Example:**
+
+```powershell
+$headers = @{ "X-API-Key" = "cfadmin_xpfWC5wGq9VvlfowvdcoTL8k2KXgKERS666WqrnrSjA"; "Content-Type" = "application/json" }
+$body = '{
+  "siteId":"guitar_repair_of_tampa_bay",
+  "name":"John Doe",
+  "email":"john@example.com",
+  "message":"Need a guitar setup",
+  "triggerWebhooks": true
+}'
+Invoke-RestMethod -Uri "https://forms.redlettersolutions.io/api/submissions?triggerWebhooks=true" -Method Post -Headers $headers -Body $body
+```
+
+Notes:
+- When requested, webhooks are triggered asynchronously and do not delay the API response.
+- The payload sent to each webhook includes: id, siteId, name, email, message, clientIp, submittedAt, metadata, createdAt.
+
+---
+
 ## Statistics API
 
 ### 7. Get Submission Statistics

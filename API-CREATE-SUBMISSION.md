@@ -16,6 +16,12 @@ The Create Submission API endpoint allows you to programmatically add contact fo
 POST /api/submissions
 ```
 
+Optional query parameter:
+
+```
+?triggerWebhooks=true|false
+```
+
 ## Request
 
 ### Headers
@@ -36,6 +42,8 @@ Content-Type: application/json
   "metadata": {
     "key": "value"
   } (optional)
+  ,
+  "triggerWebhooks": "boolean (optional)"
 }
 ```
 
@@ -50,6 +58,7 @@ Content-Type: application/json
 | `clientIp` | string | No | IP address of the client (defaults to "API" if not provided) |
 | `submittedAt` | datetime | No | Timestamp of submission (defaults to current UTC time) |
 | `metadata` | object | No | Additional fields as key-value pairs (phone, company, etc.) |
+| `triggerWebhooks` | boolean | No | If true, triggers configured webhooks for the given site after saving (also supported via query string) |
 
 ### Metadata Fields
 
@@ -71,6 +80,7 @@ The `metadata` object supports any custom fields you want to track. Common examp
 {
   "success": true,
   "message": "Submission created successfully",
+  "webhooksRequested": false,
   "submission": {
     "id": 123,
     "siteId": "example-site",
@@ -146,6 +156,7 @@ curl -X POST https://your-api-domain.com/api/submissions \
 {
   "success": true,
   "message": "Submission created successfully",
+  "webhooksRequested": true,
   "submission": {
     "id": 124,
     "siteId": "my-site",
@@ -215,7 +226,7 @@ curl -X POST https://your-api-domain.com/api/submissions \
 ```javascript
 async function submitToAPI(formData) {
   try {
-    const response = await fetch('https://your-api-domain.com/api/submissions', {
+    const response = await fetch('https://your-api-domain.com/api/submissions?triggerWebhooks=true', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -231,6 +242,8 @@ async function submitToAPI(formData) {
           company: formData.company,
           source: 'Custom Web Form'
         }
+      ,
+      triggerWebhooks: true
       })
     });
     
@@ -258,7 +271,7 @@ import json
 from datetime import datetime
 
 def create_submission(site_id, name, email, message, metadata=None):
-    url = 'https://your-api-domain.com/api/submissions'
+  url = 'https://your-api-domain.com/api/submissions?triggerWebhooks=true'
     
     payload = {
         'siteId': site_id,
@@ -266,7 +279,8 @@ def create_submission(site_id, name, email, message, metadata=None):
         'email': email,
         'message': message,
         'submittedAt': datetime.utcnow().isoformat() + 'Z',
-        'metadata': metadata or {}
+    'metadata': metadata or {},
+    'triggerWebhooks': True
     }
     
     headers = {'Content-Type': 'application/json'}
@@ -340,7 +354,7 @@ function send_to_contact_forms_api($contact_form) {
     $api_data['metadata'] = array_filter($api_data['metadata']);
     
     // Send to API
-    $response = wp_remote_post('https://your-api-domain.com/api/submissions', array(
+  $response = wp_remote_post('https://your-api-domain.com/api/submissions?triggerWebhooks=true', array(
         'headers' => array('Content-Type' => 'application/json'),
         'body' => json_encode($api_data),
         'timeout' => 15
@@ -383,7 +397,7 @@ function send_gravity_form_to_api($entry, $form) {
     
     $api_data['metadata'] = array_filter($api_data['metadata']);
     
-    wp_remote_post('https://your-api-domain.com/api/submissions', array(
+  wp_remote_post('https://your-api-domain.com/api/submissions?triggerWebhooks=true', array(
         'headers' => array('Content-Type' => 'application/json'),
         'body' => json_encode($api_data),
         'timeout' => 15

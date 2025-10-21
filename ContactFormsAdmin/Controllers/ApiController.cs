@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ContactFormsAdmin.Data;
 using ContactFormsAdmin.Models;
+using ContactFormsAdmin.Services;
 using System.Text.Json;
 
 namespace ContactFormsAdmin.Controllers;
@@ -11,10 +12,12 @@ namespace ContactFormsAdmin.Controllers;
 public class ApiController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
+    private readonly WebhookService _webhookService;
 
-    public ApiController(ApplicationDbContext context)
+    public ApiController(ApplicationDbContext context, WebhookService webhookService)
     {
         _context = context;
+        _webhookService = webhookService;
     }
 
     /// <summary>
@@ -299,7 +302,7 @@ public class ApiController : ControllerBase
     /// Create a new submission for a site
     /// </summary>
     [HttpPost("submissions")]
-    public async Task<IActionResult> CreateSubmission([FromBody] CreateSubmissionRequest request)
+    public async Task<IActionResult> CreateSubmission([FromBody] CreateSubmissionRequest request, [FromQuery] bool triggerWebhooks = false)
     {
         try
         {
@@ -353,6 +356,36 @@ public class ApiController : ControllerBase
             _context.ContactSubmissions.Add(submission);
             await _context.SaveChangesAsync();
 
+            // Optionally trigger webhooks (non-blocking)
+            var shouldTrigger = triggerWebhooks || (request.TriggerWebhooks ?? false);
+            if (shouldTrigger)
+            {
+                var payload = new
+                {
+                    id = submission.Id,
+                    siteId = submission.SiteId,
+                    name = submission.Name,
+                    email = submission.Email,
+                    message = submission.Message,
+                    clientIp = submission.ClientIp,
+                    submittedAt = submission.SubmittedAt,
+                    metadata = submission.GetMetadata(),
+                    createdAt = submission.CreatedAt
+                };
+
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await _webhookService.TriggerWebhooksAsync(submission.SiteId, payload);
+                    }
+                    catch
+                    {
+                        // Intentionally swallow to avoid impacting API response
+                    }
+                });
+            }
+
             return CreatedAtAction(
                 nameof(GetSubmission),
                 new { siteId = submission.SiteId, id = submission.Id },
@@ -360,6 +393,7 @@ public class ApiController : ControllerBase
                 {
                     success = true,
                     message = "Submission created successfully",
+                    webhooksRequested = shouldTrigger,
                     submission = new
                     {
                         submission.Id,
@@ -393,4 +427,5 @@ public class CreateSubmissionRequest
     public string? ClientIp { get; set; }
     public DateTime? SubmittedAt { get; set; }
     public Dictionary<string, string>? Metadata { get; set; }
+    public bool? TriggerWebhooks { get; set; }
 }
