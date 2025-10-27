@@ -4,6 +4,7 @@ using ContactFormsAdmin.Data;
 using ContactFormsAdmin.Models;
 using ContactFormsAdmin.Services;
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace ContactFormsAdmin.Controllers;
 
@@ -13,11 +14,13 @@ public class ApiController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly WebhookService _webhookService;
+    private readonly IServiceScopeFactory _scopeFactory;
 
-    public ApiController(ApplicationDbContext context, WebhookService webhookService)
+    public ApiController(ApplicationDbContext context, WebhookService webhookService, IServiceScopeFactory scopeFactory)
     {
         _context = context;
         _webhookService = webhookService;
+        _scopeFactory = scopeFactory;
     }
 
     /// <summary>
@@ -377,7 +380,10 @@ public class ApiController : ControllerBase
                 {
                     try
                     {
-                        await _webhookService.TriggerWebhooksAsync(submission.SiteId, payload);
+                        // Create a new DI scope so scoped services (like DbContext) are valid
+                        using var scope = _scopeFactory.CreateScope();
+                        var scopedWebhookService = scope.ServiceProvider.GetRequiredService<WebhookService>();
+                        await scopedWebhookService.TriggerWebhooksAsync(submission.SiteId, payload);
                     }
                     catch
                     {

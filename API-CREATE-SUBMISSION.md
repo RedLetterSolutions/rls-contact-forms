@@ -26,6 +26,7 @@ Optional query parameter:
 
 ### Headers
 ```
+X-API-Key: your_api_key_here
 Content-Type: application/json
 ```
 
@@ -368,6 +369,62 @@ function send_to_contact_forms_api($contact_form) {
 ```
 
 ### Gravity Forms
+### WPForms (Webhooks Addon)
+
+You can send nested metadata to the API using WPForms' Webhooks addon. There are two reliable approaches:
+
+1) Raw JSON body (recommended)
+- URL: https://your-api-domain.com/api/submissions?triggerWebhooks=true
+- Method: POST
+- Headers:
+  - Content-Type: application/json
+  - X-API-Key: your_api_key_here
+- Body (Raw JSON):
+
+```
+{
+  "siteId": "wordpress-site-1",
+  "name": "{field_id_for_name}",
+  "email": "{field_id_for_email}",
+  "message": "{field_id_for_message}",
+  "clientIp": "{user_ip}",
+  "submittedAt": "{date format="Y-m-d\\TH:i:s\\Z"}",
+  "metadata": {
+    "phone": "{field_id_for_phone}",
+    "company": "{field_id_for_company}",
+    "source": "WPForms",
+    "form_id": "{form_id}",
+    "form_title": "{form_name}",
+    "entry_id": "{entry_id}",
+    "page_url": "{url_current}",
+    "user_agent": "{user_agent}"
+  },
+  "triggerWebhooks": true
+}
+```
+
+Notes:
+- Replace {field_id_for_*} with the actual smart tags for your fields (e.g., {field_id="3"} or {field_id="3" first} depending on your setup).
+- WPForms smart tag names can vary by version; use the tag selector in the Webhook UI to insert the correct tags.
+
+2) Key/value pairs (form-encoded)
+- If you prefer key/value mode instead of raw JSON, you can still build nested metadata by using bracket or dot notation in keys:
+  - Key: metadata[phone]   Value: {field_id_for_phone}
+  - Key: metadata[company] Value: {field_id_for_company}
+  - Key: metadata[source]  Value: WPForms
+  - Key: siteId            Value: wordpress-site-1
+  - Key: name              Value: {field_id_for_name}
+  - Key: email             Value: {field_id_for_email}
+  - Key: message           Value: {field_id_for_message}
+  - Key: clientIp          Value: {user_ip}
+  - Key: triggerWebhooks   Value: true
+
+Either metadata[phone] or metadata.phone will correctly bind to the server's nested metadata object. Ensure the Content-Type is set appropriately:
+- application/x-www-form-urlencoded for key/value pairs
+- application/json for raw JSON
+
+Also add the X-API-Key header in the Webhook's Request Headers section.
+
 
 ```php
 add_action('gform_after_submission', 'send_gravity_form_to_api', 10, 2);
@@ -409,7 +466,7 @@ function send_gravity_form_to_api($entry, $form) {
 
 1. **No Email Sent**: Unlike the standard form submission endpoint (`POST /v1/contact/{siteId}`), this API endpoint does NOT send email notifications. It only stores the submission in the database.
 
-2. **No Webhooks Triggered**: Currently, webhooks are not triggered when using this endpoint. If you need webhook support, it can be added as a future enhancement.
+2. **Webhooks Support**: You can trigger configured webhooks by setting `triggerWebhooks` to `true` in the JSON body or by adding `?triggerWebhooks=true` to the URL.
 
 3. **Site Validation**: The `siteId` must exist in the `sites` table. If it doesn't exist, you'll receive a 404 error.
 
@@ -456,7 +513,7 @@ Build custom applications that need to store form submissions centrally without 
 
 ## Security Considerations
 
-1. **API Authentication**: Consider adding API key authentication to prevent unauthorized submissions
+1. **API Authentication**: This endpoint requires an API key. Include `X-API-Key: your_api_key_here` in the headers to prevent unauthorized submissions.
 2. **Rate Limiting**: Implement rate limiting if exposing publicly
 3. **Input Validation**: All inputs are validated server-side, but consider adding client-side validation
 4. **HTTPS Only**: Always use HTTPS in production to protect sensitive data
